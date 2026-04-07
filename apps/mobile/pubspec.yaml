@@ -1,0 +1,35 @@
+name: mindrouter_mobile
+description: Mindrouter MVP Flutter client
+publish_to: none
+
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: any
+  dio: any
+  flutter_animate: any
+  flutter_local_notifications: any
+  flutter_riverpod: any
+  fl_chart: any
+  freezed_annotation: any
+  go_router: any
+  hive: any
+  hive_flutter: any
+  json_annotation: any
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  build_runner: any
+  flutter_lints: any
+  freezed: any
+  json_serializable: any
+
+flutter:
+  uses-material-design: true
+
