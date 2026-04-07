@@ -21,6 +21,7 @@ dependencies:
   hive: any
   hive_flutter: any
   json_annotation: any
+  supabase_flutter: any
 
 dev_dependencies:
   flutter_test:
@@ -32,4 +33,3 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-

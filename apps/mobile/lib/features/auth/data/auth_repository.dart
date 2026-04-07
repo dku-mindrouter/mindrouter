@@ -1,6 +1,9 @@
+import '../domain/auth_state.dart';
+
 abstract class AuthRepository {
-  Future<void> signInWithGoogle();
-  Future<void> signInWithApple();
+  bool get isConfigured;
+  Stream<AuthStatus> authStateChanges();
+  Future<void> signInForDevelopment();
   Future<void> signOut();
 }
 
