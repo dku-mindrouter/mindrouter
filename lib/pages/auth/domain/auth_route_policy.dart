@@ -1,0 +1,3 @@
+﻿String resolveAuthNextRoute() {
+  return 'emotion';
+}
