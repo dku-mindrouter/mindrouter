@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 class FigmaWireframeExperience extends StatefulWidget {
@@ -443,154 +445,110 @@ class _HomePage extends StatefulWidget {
 
 class _HomePageState extends State<_HomePage> {
   final Set<String> _selectedEmotionIds = <String>{};
+  bool _isInsightSheetOpen = false;
 
   @override
   Widget build(BuildContext context) {
     final _InsightData? insight = _resolveInsight();
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 120),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            '오늘 밤의 마음',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '가까운 감정 구슬을 1~3개 터치하세요',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: Colors.white.withValues(alpha: 0.64),
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '2026.04.13',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: const Color(0xFF51557A),
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: Center(
-              child: SizedBox(
-                width: 345,
-                height: 500,
-                child: Stack(
-                  children: <Widget>[
-                    ..._homeStarDots,
-                    ..._emotionOptions.map(
-                      (_EmotionBubbleData emotion) => _EmotionBubble(
-                        data: emotion,
-                        selected: _selectedEmotionIds.contains(emotion.id),
-                        faded:
-                            _selectedEmotionIds.isNotEmpty &&
-                            !_selectedEmotionIds.contains(emotion.id),
-                        onTap: () => _toggleEmotion(emotion),
-                      ),
-                    ),
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 12,
-                      child: Text(
-                        '여러 감정이 겹친다면 함께 선택해주세요',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: const Color(0xFF656A8D),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (insight != null) ...<Widget>[
-            _InsightCard(
-              title: insight.title,
-              description: insight.description,
-              badge: insight.badge,
-              accentColor: insight.accentColor,
-            ),
-            const SizedBox(height: 14),
-          ],
-          Row(
+    return Stack(
+      children: <Widget>[
+        SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 160),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _selectedEmotionIds.isEmpty
-                      ? null
-                      : () {
-                          if (insight == null) {
-                            return;
-                          }
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(insight.title)),
-                          );
-                        },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white.withValues(alpha: 0.9),
-                    side: BorderSide(
-                      color: _selectedEmotionIds.isEmpty
-                          ? Colors.white.withValues(alpha: 0.06)
-                          : Colors.white.withValues(alpha: 0.14),
-                    ),
-                    backgroundColor: const Color(0xFF16172B),
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                  ),
-                  child: const Text(
-                    '인사이트 보기',
-                    style: TextStyle(fontWeight: FontWeight.w700),
-                  ),
+              Text(
+                '오늘 밤의 마음',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 2,
-                child: FilledButton.icon(
-                  onPressed: _selectedEmotionIds.isEmpty
-                      ? null
-                      : _showPostingPlaceholder,
-                  style: FilledButton.styleFrom(
-                    backgroundColor:
-                        insight?.accentColor ?? const Color(0xFF5B64F6),
-                    disabledBackgroundColor: Colors.white.withValues(
-                      alpha: 0.12,
+              const SizedBox(height: 8),
+              Text(
+                '가까운 감정 구슬을 1~3개 터치하세요',
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: Colors.white.withValues(alpha: 0.64),
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '2026.04.13',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: const Color(0xFF51557A),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: Center(
+                  child: SizedBox(
+                    width: 345,
+                    height: 500,
+                    child: Stack(
+                      children: <Widget>[
+                        ..._homeStarDots,
+                        ..._emotionOptions.map(
+                          (_EmotionBubbleData emotion) => _EmotionBubble(
+                            data: emotion,
+                            selected: _selectedEmotionIds.contains(emotion.id),
+                            faded:
+                                _selectedEmotionIds.isNotEmpty &&
+                                !_selectedEmotionIds.contains(emotion.id),
+                            onTap: () => _toggleEmotion(emotion),
+                          ),
+                        ),
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 12,
+                          child: Text(
+                            '여러 감정이 겹친다면 함께 선택해주세요',
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: const Color(0xFF656A8D),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                          ),
+                        ),
+                      ],
                     ),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                  ),
-                  icon: const Icon(Icons.auto_awesome),
-                  label: Text(
-                    _selectedEmotionIds.isEmpty
-                        ? '감정을 먼저 선택해 주세요'
-                        : '별 띄우기 (${_selectedEmotionIds.length}/3)',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
             ],
           ),
+        ),
+        if (insight != null && _isInsightSheetOpen) ...<Widget>[
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: _closeInsightSheet,
+              child: ClipRect(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(color: Colors.black.withValues(alpha: 0.28)),
+                ),
+              ),
+            ),
+          ),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: _InsightBottomSheet(
+              insight: insight,
+              selectionCount: _selectedEmotionIds.length,
+              onClose: _closeInsightSheet,
+              onAddEmotion: _closeInsightSheet,
+              onPrimaryAction: _showPostingPlaceholder,
+            ),
+          ),
         ],
-      ),
+      ],
     );
   }
 
@@ -598,6 +556,9 @@ class _HomePageState extends State<_HomePage> {
     setState(() {
       if (_selectedEmotionIds.contains(emotion.id)) {
         _selectedEmotionIds.remove(emotion.id);
+        if (_selectedEmotionIds.isEmpty) {
+          _isInsightSheetOpen = false;
+        }
         return;
       }
 
@@ -609,6 +570,13 @@ class _HomePageState extends State<_HomePage> {
       }
 
       _selectedEmotionIds.add(emotion.id);
+      _isInsightSheetOpen = true;
+    });
+  }
+
+  void _closeInsightSheet() {
+    setState(() {
+      _isInsightSheetOpen = false;
     });
   }
 
@@ -761,61 +729,285 @@ class _EmotionBubble extends StatelessWidget {
   }
 }
 
-class _InsightCard extends StatelessWidget {
-  const _InsightCard({
-    required this.title,
-    required this.description,
-    required this.badge,
-    required this.accentColor,
+class _InsightBottomSheet extends StatelessWidget {
+  const _InsightBottomSheet({
+    required this.insight,
+    required this.selectionCount,
+    required this.onClose,
+    required this.onAddEmotion,
+    required this.onPrimaryAction,
   });
 
-  final String title;
-  final String description;
-  final String badge;
-  final Color accentColor;
+  final _InsightData insight;
+  final int selectionCount;
+  final VoidCallback onClose;
+  final VoidCallback onAddEmotion;
+  final VoidCallback onPrimaryAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFF191B34),
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(28),
+            bottom: Radius.circular(28),
+          ),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+          boxShadow: const <BoxShadow>[
+            BoxShadow(
+              color: Color(0x66000000),
+              blurRadius: 38,
+              offset: Offset(0, -10),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            GestureDetector(
+              onTap: onClose,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(22, 12, 22, 0),
+                child: Center(
+                  child: Container(
+                    width: 52,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.24),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 18, 22, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      Icon(
+                        Icons.auto_awesome,
+                        color: insight.accentColor.withValues(alpha: 0.95),
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '심리 스니펫 · COGNITIVE INSIGHT',
+                        style: TextStyle(
+                          color: insight.accentColor.withValues(alpha: 0.9),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    '"${insight.title}"',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 22,
+                      height: 1.25,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    insight.description,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Colors.white.withValues(alpha: 0.72),
+                      fontSize: 15,
+                      height: 1.65,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: <Widget>[
+                      _InsightTag(
+                        label: '마음 챙김',
+                        color: const Color(0xFFB1794E),
+                        dotColor: const Color(0xFFE0A35E),
+                      ),
+                      _InsightTag(
+                        label: '7일 연속 기록',
+                        color: const Color(0xFF5857C3),
+                        dotColor: const Color(0xFF8B84FF),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 22),
+            Container(
+              padding: const EdgeInsets.fromLTRB(22, 16, 22, 18),
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+                ),
+              ),
+              child: Row(
+                children: <Widget>[
+                  Flexible(
+                    flex: 8,
+                    child: _SheetSecondaryButton(
+                      onPressed: onAddEmotion,
+                      label: '감정 추가 ($selectionCount/3)',
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Flexible(
+                    flex: 12,
+                    child: _SheetPrimaryButton(
+                      onPressed: onPrimaryAction,
+                      label: '은하수에 별 띄우기',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SheetSecondaryButton extends StatelessWidget {
+  const _SheetSecondaryButton({required this.onPressed, required this.label});
+
+  final VoidCallback onPressed;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 50,
+      child: OutlinedButton.icon(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.white.withValues(alpha: 0.92),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+          backgroundColor: const Color(0xFF232648),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        icon: const Icon(Icons.add, size: 18),
+        label: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+      ),
+    );
+  }
+}
+
+class _SheetPrimaryButton extends StatelessWidget {
+  const _SheetPrimaryButton({required this.onPressed, required this.label});
+
+  final VoidCallback onPressed;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 50,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: const LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: <Color>[
+              Color(0xFFC18C6F),
+              Color(0xFFB08EB7),
+              Color(0xFF8F6ED8),
+            ],
+          ),
+          boxShadow: const <BoxShadow>[
+            BoxShadow(
+              color: Color(0x40A076D0),
+              blurRadius: 18,
+              offset: Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  Flexible(
+                    child: Text(
+                      label,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.auto_awesome, color: Colors.white, size: 18),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InsightTag extends StatelessWidget {
+  const _InsightTag({
+    required this.label,
+    required this.color,
+    required this.dotColor,
+  });
+
+  final String label;
+  final Color color;
+  final Color dotColor;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF16172B),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: accentColor.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              badge,
-              style: TextStyle(
-                color: accentColor,
-                fontWeight: FontWeight.w700,
-                fontSize: 12,
-              ),
-            ),
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(width: 8),
           Text(
-            title,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            description,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Colors.white.withValues(alpha: 0.72),
-              height: 1.6,
+            label,
+            style: TextStyle(
+              color: color.withValues(alpha: 0.95),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
