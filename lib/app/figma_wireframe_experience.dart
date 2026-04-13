@@ -7,12 +7,14 @@ class FigmaWireframeExperience extends StatefulWidget {
     required this.nickname,
     required this.timezone,
     required this.nextRoute,
+    this.previewMessage,
   });
 
   final String userId;
   final String nickname;
   final String timezone;
   final String nextRoute;
+  final String? previewMessage;
 
   @override
   State<FigmaWireframeExperience> createState() =>
@@ -26,6 +28,7 @@ class _FigmaWireframeExperienceState extends State<FigmaWireframeExperience> {
   Widget build(BuildContext context) {
     if (!_hasCompletedOnboarding) {
       return _OnboardingFlow(
+        previewMessage: widget.previewMessage,
         onComplete: () {
           setState(() {
             _hasCompletedOnboarding = true;
@@ -39,14 +42,16 @@ class _FigmaWireframeExperienceState extends State<FigmaWireframeExperience> {
       timezone: widget.timezone,
       nextRoute: widget.nextRoute,
       userId: widget.userId,
+      previewMessage: widget.previewMessage,
     );
   }
 }
 
 class _OnboardingFlow extends StatefulWidget {
-  const _OnboardingFlow({required this.onComplete});
+  const _OnboardingFlow({required this.onComplete, this.previewMessage});
 
   final VoidCallback onComplete;
+  final String? previewMessage;
 
   @override
   State<_OnboardingFlow> createState() => _OnboardingFlowState();
@@ -65,106 +70,131 @@ class _OnboardingFlowState extends State<_OnboardingFlow> {
         children: <Widget>[
           const _SpaceBackdrop(),
           SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-              child: Column(
-                children: <Widget>[
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List<Widget>.generate(
-                      _steps.length,
-                      (int index) => AnimatedContainer(
-                        duration: const Duration(milliseconds: 220),
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        width: index == _step ? 32 : 8,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: index <= _step
-                              ? const Color(0xFF818CF8)
-                              : Colors.white.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                    ),
+            child: LayoutBuilder(
+              builder: (BuildContext context, BoxConstraints constraints) {
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 20,
                   ),
-                  const Spacer(),
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 260),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                    ),
                     child: Column(
-                      key: ValueKey<int>(_step),
                       children: <Widget>[
-                        SizedBox(
-                          height: 240,
-                          child: Center(child: data.visualBuilder(context)),
+                        if (widget.previewMessage != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: _PreviewModeBanner(
+                              message: widget.previewMessage!,
+                            ),
+                          ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: List<Widget>.generate(
+                            _steps.length,
+                            (int index) => AnimatedContainer(
+                              duration: const Duration(milliseconds: 220),
+                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                              width: index == _step ? 32 : 8,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: index <= _step
+                                    ? const Color(0xFF818CF8)
+                                    : Colors.white.withValues(alpha: 0.16),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 28),
-                        Text(
-                          data.title,
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.headlineMedium
-                              ?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w800,
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 260),
+                          child: Column(
+                            key: ValueKey<int>(_step),
+                            children: <Widget>[
+                              SizedBox(
+                                height: 240,
+                                child: Center(
+                                  child: data.visualBuilder(context),
+                                ),
                               ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          data.description,
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodyLarge
-                              ?.copyWith(
-                                color: Colors.white.withValues(alpha: 0.68),
-                                height: 1.6,
+                              const SizedBox(height: 28),
+                              Text(
+                                data.title,
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineMedium
+                                    ?.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                    ),
                               ),
+                              const SizedBox(height: 16),
+                              Text(
+                                data.description,
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.bodyLarge
+                                    ?.copyWith(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.68,
+                                      ),
+                                      height: 1.6,
+                                    ),
+                              ),
+                              if (data.note != null) ...<Widget>[
+                                const SizedBox(height: 22),
+                                _OnboardingNote(text: data.note!),
+                              ],
+                            ],
+                          ),
                         ),
-                        if (data.note != null) ...<Widget>[
-                          const SizedBox(height: 22),
-                          _OnboardingNote(text: data.note!),
-                        ],
+                        const SizedBox(height: 28),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton(
+                            onPressed: _handlePrimaryAction,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFF6366F1),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 18),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(24),
+                              ),
+                            ),
+                            child: Text(
+                              _step == _steps.length - 1
+                                  ? '알림 허용하고 시작하기'
+                                  : _step == 0
+                                  ? '시작하기'
+                                  : '계속하기',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (_step == _steps.length - 1)
+                          TextButton(
+                            onPressed: widget.onComplete,
+                            child: Text(
+                              '나중에 하기',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.45),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          )
+                        else
+                          const SizedBox(height: 48),
                       ],
                     ),
                   ),
-                  const Spacer(),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: _handlePrimaryAction,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF6366F1),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 18),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                      ),
-                      child: Text(
-                        _step == _steps.length - 1
-                            ? '알림 허용하고 시작하기'
-                            : _step == 0
-                            ? '시작하기'
-                            : '계속하기',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (_step == _steps.length - 1)
-                    TextButton(
-                      onPressed: widget.onComplete,
-                      child: Text(
-                        '나중에 하기',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.45),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    )
-                  else
-                    const SizedBox(height: 48),
-                ],
-              ),
+                );
+              },
             ),
           ),
         ],
@@ -239,12 +269,14 @@ class _MindRouterShell extends StatefulWidget {
     required this.timezone,
     required this.nextRoute,
     required this.userId,
+    this.previewMessage,
   });
 
   final String nickname;
   final String timezone;
   final String nextRoute;
   final String userId;
+  final String? previewMessage;
 
   @override
   State<_MindRouterShell> createState() => _MindRouterShellState();
@@ -274,7 +306,15 @@ class _MindRouterShellState extends State<_MindRouterShell> {
           const _SpaceBackdrop(),
           SafeArea(
             bottom: false,
-            child: IndexedStack(index: _currentIndex, children: pages),
+            child: Column(
+              children: <Widget>[
+                if (widget.previewMessage != null)
+                  _PreviewModeBanner(message: widget.previewMessage!),
+                Expanded(
+                  child: IndexedStack(index: _currentIndex, children: pages),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -332,6 +372,66 @@ class _MindRouterShellState extends State<_MindRouterShell> {
   }
 }
 
+class _PreviewModeBanner extends StatelessWidget {
+  const _PreviewModeBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0x1A38BDF8),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0x6638BDF8)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            const Padding(
+              padding: EdgeInsets.only(top: 1),
+              child: Icon(
+                Icons.visibility_outlined,
+                color: Color(0xFF7DD3FC),
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  const Text(
+                    'Preview Mode',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    message,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.76),
+                      height: 1.4,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _HomePage extends StatefulWidget {
   const _HomePage({required this.nickname});
 
@@ -347,12 +447,6 @@ class _HomePageState extends State<_HomePage> {
   @override
   Widget build(BuildContext context) {
     final _InsightData? insight = _resolveInsight();
-    final List<_EmotionBubbleData> selected = _emotionOptions
-        .where(
-          (_EmotionBubbleData emotion) =>
-              _selectedEmotionIds.contains(emotion.id),
-        )
-        .toList(growable: false);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 120),
@@ -368,93 +462,132 @@ class _HomePageState extends State<_HomePage> {
           ),
           const SizedBox(height: 8),
           Text(
-            '${widget.nickname}님과 가까운 감정을 1~3개 골라보세요.',
+            '가까운 감정 구슬을 1~3개 터치하세요',
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               color: Colors.white.withValues(alpha: 0.64),
-              height: 1.55,
+              height: 1.4,
             ),
           ),
-          const SizedBox(height: 28),
-          Container(
-            height: 420,
+          const SizedBox(height: 8),
+          Text(
+            '2026.04.13',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: const Color(0xFF51557A),
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
             width: double.infinity,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(32),
-              color: Colors.white.withValues(alpha: 0.03),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-            ),
-            child: Stack(
-              children: <Widget>[
-                ..._emotionOptions.map(
-                  (_EmotionBubbleData emotion) => _EmotionBubble(
-                    data: emotion,
-                    selected: _selectedEmotionIds.contains(emotion.id),
-                    faded:
-                        _selectedEmotionIds.isNotEmpty &&
-                        !_selectedEmotionIds.contains(emotion.id),
-                    onTap: () => _toggleEmotion(emotion),
-                  ),
+            child: Center(
+              child: SizedBox(
+                width: 345,
+                height: 500,
+                child: Stack(
+                  children: <Widget>[
+                    ..._homeStarDots,
+                    ..._emotionOptions.map(
+                      (_EmotionBubbleData emotion) => _EmotionBubble(
+                        data: emotion,
+                        selected: _selectedEmotionIds.contains(emotion.id),
+                        faded:
+                            _selectedEmotionIds.isNotEmpty &&
+                            !_selectedEmotionIds.contains(emotion.id),
+                        onTap: () => _toggleEmotion(emotion),
+                      ),
+                    ),
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 12,
+                      child: Text(
+                        '여러 감정이 겹친다면 함께 선택해주세요',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: const Color(0xFF656A8D),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
-          const SizedBox(height: 18),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: selected
-                .map(
-                  (_EmotionBubbleData emotion) => Chip(
-                    label: Text(emotion.name),
-                    backgroundColor: emotion.color.withValues(alpha: 0.18),
-                    side: BorderSide(
-                      color: emotion.color.withValues(alpha: 0.4),
-                    ),
-                    labelStyle: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    deleteIconColor: Colors.white70,
-                    onDeleted: () => _toggleEmotion(emotion),
-                  ),
-                )
-                .toList(growable: false),
-          ),
-          const SizedBox(height: 24),
-          if (insight != null)
+          const SizedBox(height: 12),
+          if (insight != null) ...<Widget>[
             _InsightCard(
               title: insight.title,
               description: insight.description,
               badge: insight.badge,
               accentColor: insight.accentColor,
-            )
-          else
-            const _PromptCard(),
-          const SizedBox(height: 18),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: _selectedEmotionIds.isEmpty
-                  ? null
-                  : _showPostingPlaceholder,
-              style: FilledButton.styleFrom(
-                backgroundColor:
-                    insight?.accentColor ?? const Color(0xFF5B64F6),
-                disabledBackgroundColor: Colors.white.withValues(alpha: 0.12),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
+            ),
+            const SizedBox(height: 14),
+          ],
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _selectedEmotionIds.isEmpty
+                      ? null
+                      : () {
+                          if (insight == null) {
+                            return;
+                          }
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(insight.title)),
+                          );
+                        },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white.withValues(alpha: 0.9),
+                    side: BorderSide(
+                      color: _selectedEmotionIds.isEmpty
+                          ? Colors.white.withValues(alpha: 0.06)
+                          : Colors.white.withValues(alpha: 0.14),
+                    ),
+                    backgroundColor: const Color(0xFF16172B),
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                  ),
+                  child: const Text(
+                    '인사이트 보기',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
                 ),
               ),
-              icon: const Icon(Icons.auto_awesome),
-              label: Text(
-                _selectedEmotionIds.isEmpty
-                    ? '감정을 먼저 선택해 주세요'
-                    : '별 띄우기 (${_selectedEmotionIds.length}/3)',
-                style: const TextStyle(fontWeight: FontWeight.w700),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: FilledButton.icon(
+                  onPressed: _selectedEmotionIds.isEmpty
+                      ? null
+                      : _showPostingPlaceholder,
+                  style: FilledButton.styleFrom(
+                    backgroundColor:
+                        insight?.accentColor ?? const Color(0xFF5B64F6),
+                    disabledBackgroundColor: Colors.white.withValues(
+                      alpha: 0.12,
+                    ),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                  ),
+                  icon: const Icon(Icons.auto_awesome),
+                  label: Text(
+                    _selectedEmotionIds.isEmpty
+                        ? '감정을 먼저 선택해 주세요'
+                        : '별 띄우기 (${_selectedEmotionIds.length}/3)',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         ],
       ),
@@ -550,8 +683,9 @@ class _EmotionBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final double size = selected ? 106 : 94;
 
-    return Align(
-      alignment: data.alignment,
+    return Positioned(
+      left: data.left,
+      top: data.top,
       child: AnimatedScale(
         scale: selected
             ? 1.08
@@ -685,30 +819,6 @@ class _InsightCard extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _PromptCard extends StatelessWidget {
-  const _PromptCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-      ),
-      child: Text(
-        '감정 구슬을 선택하면 오늘의 심리 스니펫과 다음 액션 영역을 여기에 연결할 수 있어요.',
-        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-          color: Colors.white.withValues(alpha: 0.72),
-          height: 1.6,
-        ),
       ),
     );
   }
@@ -1536,6 +1646,25 @@ class _GlowOrb extends StatelessWidget {
   }
 }
 
+class _TinyStar extends StatelessWidget {
+  const _TinyStar({required this.size, required this.opacity});
+
+  final double size;
+  final double opacity;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: opacity),
+        shape: BoxShape.circle,
+      ),
+    );
+  }
+}
+
 class _ConstellationLinePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -1581,14 +1710,16 @@ class _EmotionBubbleData {
     required this.id,
     required this.name,
     required this.color,
-    required this.alignment,
+    required this.left,
+    required this.top,
     this.subLabel,
   });
 
   final String id;
   final String name;
   final Color color;
-  final Alignment alignment;
+  final double left;
+  final double top;
   final String? subLabel;
 }
 
@@ -1673,60 +1804,68 @@ const List<_OnboardingStepData> _steps = <_OnboardingStepData>[
 
 const List<_EmotionBubbleData> _emotionOptions = <_EmotionBubbleData>[
   _EmotionBubbleData(
-    id: 'depression',
-    name: '#우울함',
-    color: Color(0xFF6E7BF5),
-    alignment: Alignment(-0.68, -0.88),
-    subLabel: 'down',
+    id: 'lethargy',
+    name: '#무기력',
+    color: Color(0xFFB68355),
+    left: 36,
+    top: 28,
+    subLabel: '텅 빈 느낌',
   ),
   _EmotionBubbleData(
-    id: 'insomnia',
-    name: '#불면',
-    color: Color(0xFF54C1FF),
-    alignment: Alignment(0.64, -0.64),
-    subLabel: 'awake',
+    id: 'calm',
+    name: '#잔잔함',
+    color: Color(0xFF6FB1A9),
+    left: 188,
+    top: 84,
+    subLabel: '평온',
+  ),
+  _EmotionBubbleData(
+    id: 'emptiness',
+    name: '#공허함',
+    color: Color(0xFF6F55B5),
+    left: 53,
+    top: 139,
+    subLabel: '이유 없이',
+  ),
+  _EmotionBubbleData(
+    id: 'depression',
+    name: '#우울함',
+    color: Color(0xFF5D72C6),
+    left: 205,
+    top: 176,
+    subLabel: '가라앉음',
   ),
   _EmotionBubbleData(
     id: 'exhaustion',
     name: '#지침',
-    color: Color(0xFFF4B86A),
-    alignment: Alignment(-0.48, -0.22),
-    subLabel: 'drained',
+    color: Color(0xFFC1A34A),
+    left: 36,
+    top: 231,
+    subLabel: '다 쏟아냈어',
+  ),
+  _EmotionBubbleData(
+    id: 'insomnia',
+    name: '#불면',
+    color: Color(0xFF555A8A),
+    left: 153,
+    top: 268,
+    subLabel: '잠이 안 와',
   ),
   _EmotionBubbleData(
     id: 'anxiety',
     name: '#불안',
-    color: Color(0xFFE879F9),
-    alignment: Alignment(0.72, -0.06),
-    subLabel: 'uneasy',
+    color: Color(0xFF6842A8),
+    left: 70,
+    top: 323,
+    subLabel: '조마조마',
   ),
   _EmotionBubbleData(
-    id: 'lonely',
-    name: '#외로움',
-    color: Color(0xFF8B7CF8),
-    alignment: Alignment(-0.76, 0.3),
-    subLabel: 'alone',
-  ),
-  _EmotionBubbleData(
-    id: 'relief',
-    name: '#안도',
-    color: Color(0xFF4ADE80),
-    alignment: Alignment(0.46, 0.26),
-    subLabel: 'rest',
-  ),
-  _EmotionBubbleData(
-    id: 'hope',
-    name: '#희망',
-    color: Color(0xFFFB7185),
-    alignment: Alignment(-0.3, 0.76),
-    subLabel: 'hope',
-  ),
-  _EmotionBubbleData(
-    id: 'gratitude',
-    name: '#감사',
-    color: Color(0xFFFACC15),
-    alignment: Alignment(0.62, 0.82),
-    subLabel: 'warm',
+    id: 'irritation',
+    name: '#짜증',
+    color: Color(0xFFAF5A71),
+    left: 188,
+    top: 341,
+    subLabel: '건들지마',
   ),
 ];
 
@@ -1825,6 +1964,13 @@ const List<_ComfortItemData> _comfortItems = <_ComfortItemData>[
     icon: Icons.wb_cloudy_outlined,
     color: Color(0xFF38BDF8),
   ),
+];
+
+const List<Positioned> _homeStarDots = <Positioned>[
+  Positioned(left: 290, top: 76, child: _TinyStar(size: 6, opacity: 0.45)),
+  Positioned(left: 334, top: 83, child: _TinyStar(size: 4, opacity: 0.55)),
+  Positioned(left: 20, top: 330, child: _TinyStar(size: 2, opacity: 0.5)),
+  Positioned(left: 292, top: 447, child: _TinyStar(size: 4, opacity: 0.45)),
 ];
 
 Widget _buildIntroVisual(BuildContext context) {

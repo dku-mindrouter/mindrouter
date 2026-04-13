@@ -7,6 +7,7 @@
 ## 현재 상태
 
 - Supabase 부트스트랩과 익명 auth 진입 흐름은 유지하고 있습니다.
+- Supabase 설정이 없을 때도 프론트 확인용 preview mode로 바로 진입할 수 있습니다.
 - `ready` 상태 이후 임시 완료 화면 대신 Figma 시안 기반 UI를 붙였습니다.
 - 온보딩 3단계, 기본 탭 셸, 감정 선택 홈 화면이 Flutter로 포팅되어 있습니다.
 - 별자리, 위로, 프로필 탭도 Figma 시안 기반 초안 화면까지는 포팅되어 있습니다.
@@ -29,6 +30,9 @@
 flutter pub get
 flutter run
 ```
+
+Supabase 값 없이 실행하면 preview mode로 진입합니다.
+실제 auth/Supabase 연동까지 확인하려면 `--dart-define=SUPABASE_URL=...` 와 `--dart-define=SUPABASE_ANON_KEY=...` 를 함께 넣어 실행하면 됩니다.
 
 검증 명령:
 
@@ -85,6 +89,7 @@ flutter test
 ## Handoff 메모
 
 - 현재 온보딩은 실제 계정 생성 화면이 아니라, 익명 auth 기반 현재 개발 단계를 설명하는 프론트용 UI입니다.
+- Supabase 설정이 없으면 preview mode의 mock 사용자(`preview_guest`)로 화면을 바로 확인할 수 있습니다.
 - Figma 시안의 회원가입 입력창은 그대로 연결하지 않았습니다.
 - 홈 화면의 감정 선택 조합과 인사이트 문구는 현재 프론트 하드코딩 상태입니다.
 - 별자리 탭의 star 배치와 위로 탭의 목록 데이터는 현재 프론트 mock 상태입니다.

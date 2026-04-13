@@ -4,7 +4,7 @@ import 'package:mindfulconnect/app/app_config.dart';
 import 'package:mindfulconnect/main.dart';
 
 void main() {
-  testWidgets('missing config boot screen renders guidance', (
+  testWidgets('missing config starts preview mode experience', (
     WidgetTester tester,
   ) async {
     final AppBootstrap bootstrap = AppBootstrap.missingConfig(
@@ -17,8 +17,8 @@ void main() {
 
     await tester.pumpWidget(MyApp(bootstrap: bootstrap));
 
-    expect(find.text('MindfulConnect'), findsOneWidget);
-    expect(find.text('Supabase 설정이 필요합니다.'), findsOneWidget);
-    expect(find.text('Config Needed'), findsOneWidget);
+    expect(find.text('안전한 우주 공간'), findsOneWidget);
+    expect(find.text('Preview Mode'), findsOneWidget);
+    expect(find.textContaining('Supabase 설정 없이'), findsOneWidget);
   });
 }

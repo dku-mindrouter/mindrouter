@@ -61,17 +61,13 @@ class AppEntryPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (bootstrap.status == AppBootstrapStatus.missingConfig) {
-      return BootStatusPage(
-        title: 'MindfulConnect',
-        headline: 'Supabase 설정이 필요합니다.',
-        description:
-            '앱은 정상적으로 부팅되지만, 실제 인증 흐름을 실행하려면 SUPABASE_URL 과 SUPABASE_ANON_KEY 가 필요합니다.',
-        primaryLabel: 'Config Needed',
-        detailItems: const <String>[
-          'dart-define 로 SUPABASE_URL 전달',
-          'dart-define 로 SUPABASE_ANON_KEY 전달',
-          '필요하면 APP_DEFAULT_TIMEZONE 도 함께 전달',
-        ],
+      return FigmaWireframeExperience(
+        userId: 'preview-user',
+        nickname: 'preview_guest',
+        timezone: bootstrap.config.defaultTimezone,
+        nextRoute: 'emotion',
+        previewMessage:
+            'Supabase 설정 없이 프론트 화면을 확인할 수 있는 미리보기 모드입니다. 저장, 추천, 피드 조회는 mock 상태로 동작합니다.',
       );
     }
 
