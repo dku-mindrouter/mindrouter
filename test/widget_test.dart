@@ -1,19 +1,24 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mindfulconnect/app/app_bootstrap.dart';
+import 'package:mindfulconnect/app/app_config.dart';
 import 'package:mindfulconnect/main.dart';
 
 void main() {
-  testWidgets('boot screen renders key status text', (
+  testWidgets('missing config boot screen renders guidance', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(const MyApp());
+    final AppBootstrap bootstrap = AppBootstrap.missingConfig(
+      config: const AppConfig(
+        supabaseUrl: '',
+        supabaseAnonKey: '',
+        defaultTimezone: 'Asia/Seoul',
+      ),
+    );
+
+    await tester.pumpWidget(MyApp(bootstrap: bootstrap));
 
     expect(find.text('MindfulConnect'), findsOneWidget);
-    expect(find.text('Boot Ready'), findsOneWidget);
-    expect(
-      find.text(
-        'Frontend boot mode is ready on the backend-aligned branch.',
-      ),
-      findsOneWidget,
-    );
+    expect(find.text('Supabase 설정이 필요합니다.'), findsOneWidget);
+    expect(find.text('Config Needed'), findsOneWidget);
   });
 }
