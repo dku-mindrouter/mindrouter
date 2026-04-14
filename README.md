@@ -1,28 +1,77 @@
 # MindfulConnect
 
-`feature/figma-wireframe-porting` 브랜치에서 Figma 와이어프레임을 Flutter 앱에 옮기는 작업을 진행 중인 프론트 워크스페이스입니다.
+`feature/figma-wireframe-porting` 브랜치에서 Figma 와이어프레임을 Flutter 앱에 옮기고, 페이지 중심 구조로 리팩토링 중인 프론트 워크스페이스입니다.
 
-기준 프로젝트는 Flutter 모바일 앱이며, 현재 목표는 Figma 시안의 첫 진입 경험을 실제 앱 UI로 안전하게 포팅하는 것입니다.
+기준 프로젝트는 Flutter 모바일 앱이며, 현재 목표는 Figma 시안의 첫 진입 경험을 실제 앱 UI로 안전하게 포팅하면서 아래 구조 규칙을 코드베이스에 반영하는 것입니다.
+
+```text
+utils/
+shared/
+pages/
+  (names of pages)/
+    data/
+    domain/
+    presentation/
+```
+
+- `data/`: 데이터베이스 및 API 통신
+- `domain/`: 비즈니스 규칙, 알고리즘, 정책
+- `presentation/`: 화면 구성
+- `shared/features/`: 여러 페이지에서 쓰는 공통 기능 로직
+- `shared/widgets/`: 여러 페이지에서 쓰는 공통 UI 위젯
+- `shared/models/`: 여러 페이지에서 쓰는 공통 모델
+- `utils/`: 프로젝트 전반에서 재사용 가능한 범용 유틸
 
 ## 현재 상태
 
 - Supabase 부트스트랩과 익명 auth 진입 흐름은 유지하고 있습니다.
 - Supabase 설정이 없을 때도 프론트 확인용 preview mode로 바로 진입할 수 있습니다.
 - `ready` 상태 이후 임시 완료 화면 대신 Figma 시안 기반 UI를 붙였습니다.
-- 온보딩 3단계, 기본 탭 셸, 감정 선택 홈 화면이 Flutter로 포팅되어 있습니다.
-- 별자리, 위로, 프로필 탭도 Figma 시안 기반 초안 화면까지는 포팅되어 있습니다.
+- 온보딩 3단계와 기본 탭 셸이 Flutter로 포팅되어 있습니다.
+- auth, emotion, constellation, comfort, profile 화면이 각 페이지의 `presentation/`으로 분리되어 있습니다.
+- `shared/widgets/`에 첫 공통 UI 위젯(`AppPanelCard`)을 추가했습니다.
 - 아직 실제 데이터 조회/저장 연결은 들어가지 않았고 일부 인터랙션은 placeholder 상태입니다.
 - 백엔드 계약은 [docs/api-contract.md](/Users/yuchan/Desktop/git/mindrouter/docs/api-contract.md) 기준을 따릅니다.
 - 백엔드 전달 사항 원본은 [docs/backend-handoff.md](/Users/yuchan/Desktop/git/mindrouter/docs/backend-handoff.md)에 있습니다.
+- 구조 및 페이지별 개발 지침은 [docx/](/Users/yuchan/Desktop/git/mindrouter/docx) 폴더를 우선 참고합니다.
 
 ## 이번 브랜치에서 반영한 내용
 
 - [lib/main.dart](/Users/yuchan/Desktop/git/mindrouter/lib/main.dart)
-  Supabase/auth 흐름은 유지한 채, `ready` 이후 화면을 Figma 포팅 경험으로 연결했습니다.
+  앱 엔트리만 담당하도록 정리했고, auth 진입 UI는 페이지 presentation으로 분리했습니다.
 - [lib/app/figma_wireframe_experience.dart](/Users/yuchan/Desktop/git/mindrouter/lib/app/figma_wireframe_experience.dart)
-  온보딩, 탭 셸, 감정 버블 홈 화면, 별자리/위로/프로필 탭 초안을 추가했습니다.
+  온보딩과 탭 셸 중심으로 정리했고, 페이지 화면은 각 `presentation/` 파일을 조립하도록 바꿨습니다.
+- [lib/pages/](/Users/yuchan/Desktop/git/mindrouter/lib/pages)
+  `auth`, `emotion`, `constellation`, `comfort`, `profile`, `reaction` 기준으로 페이지 구조를 정리했습니다.
+- [lib/shared/widgets/app_panel_card.dart](/Users/yuchan/Desktop/git/mindrouter/lib/shared/widgets/app_panel_card.dart)
+  반복되는 카드 박스 스타일을 공통 위젯으로 추출했습니다.
+- [docx/](/Users/yuchan/Desktop/git/mindrouter/docx)
+  구조 지침, 페이지별 문서, DB 규칙, 리팩토링 검토 메모를 프로젝트 내부 기준 문서로 정리했습니다.
 - [test/widget_test.dart](/Users/yuchan/Desktop/git/mindrouter/test/widget_test.dart)
   기존 missing config 부트 화면 스모크 테스트가 계속 유지되도록 검증했습니다.
+
+## 문서 우선순위
+
+작업 시 아래 순서로 문서를 확인합니다.
+
+1. [docx/project-structure-guide.md](/Users/yuchan/Desktop/git/mindrouter/docx/project-structure-guide.md)
+2. 관련 페이지 문서 (`docx/auth.md`, `docx/emotion.md`, `docx/constellation.md` 등)
+3. [docx/db.md](/Users/yuchan/Desktop/git/mindrouter/docx/db.md)
+4. [docs/api-contract.md](/Users/yuchan/Desktop/git/mindrouter/docs/api-contract.md)
+5. [docs/backend-handoff.md](/Users/yuchan/Desktop/git/mindrouter/docs/backend-handoff.md)
+
+## 현재 구조
+
+- [lib/pages/auth](/Users/yuchan/Desktop/git/mindrouter/lib/pages/auth)
+- [lib/pages/emotion](/Users/yuchan/Desktop/git/mindrouter/lib/pages/emotion)
+- [lib/pages/constellation](/Users/yuchan/Desktop/git/mindrouter/lib/pages/constellation)
+- [lib/pages/comfort](/Users/yuchan/Desktop/git/mindrouter/lib/pages/comfort)
+- [lib/pages/profile](/Users/yuchan/Desktop/git/mindrouter/lib/pages/profile)
+- [lib/pages/reaction](/Users/yuchan/Desktop/git/mindrouter/lib/pages/reaction)
+- [lib/shared/features](/Users/yuchan/Desktop/git/mindrouter/lib/shared/features)
+- [lib/shared/models](/Users/yuchan/Desktop/git/mindrouter/lib/shared/models)
+- [lib/shared/widgets](/Users/yuchan/Desktop/git/mindrouter/lib/shared/widgets)
+- [lib/utils](/Users/yuchan/Desktop/git/mindrouter/lib/utils)
 
 ## 로컬 실행
 
@@ -61,6 +110,15 @@ flutter test
 - Profile
   - 오늘의 별 카드, 맞춤 미션 카드, streak/위로 지표, 주간 감정 차트 UI 포팅
   - auth 결과값은 하단 상태 카드로 유지
+
+## 검증
+
+```bash
+flutter analyze
+flutter test
+```
+
+현재 기준으로 `analyze`와 `test`는 통과 상태입니다.
 
 ## 프론트 작업 원칙
 

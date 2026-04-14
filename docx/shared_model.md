@@ -1,0 +1,33 @@
+- 본 문서는 shared/models 세부 개발 문서이다.
+
+- 신규 타입 정의(소유: shared/models)
+  - 파일: shared/models/relation_score_input.dart
+  - 타입: RelationScoreInput
+  - 역할: 피드 라우팅 점수 계산 공통 입력
+  - 필드:
+    - List<int> candidateTagIds
+    - List<int> viewerTagIds
+    - List<String> candidateGroups
+    - List<String> viewerGroups
+    - String candidateTimeBucket
+    - String viewerTimeBucket
+    - bool isSeen
+    - int reactionCount
+    - bool isMine
+
+  - 파일: shared/models/daily_log.dart
+  - 타입: DailyLog
+  - 역할: streak/활동 집계용 일 단위 로그 모델
+  - 필드:
+    - DateTime date
+    - bool starCreated
+    - int reactionSentCount
+    - bool nudgeOpened
+
+  - 파일: shared/models/emotion_record.dart
+  - 타입: EmotionRecord
+  - 역할: 감정 빈도 집계 입력 모델
+  - 필드:
+    - DateTime createdAt
+    - List<int> tagIds
+    - List<String> tagNames
