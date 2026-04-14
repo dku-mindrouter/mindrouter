@@ -1,5 +1,69 @@
 # API Contract v1
 
+## Supabase Runtime Baseline (2026-04-14)
+
+- project_ref: `jgyjbohdactgcavpoogb`
+- 검증 시각(Asia/Seoul): `2026-04-14`
+- anonymous auth:
+  - `auth/v1/settings.external.anonymous_users = true`
+  - `POST /auth/v1/signup` 익명 세션 토큰 발급 확인
+- migration 반영 상태:
+  - 원격 `supabase_migrations.schema_migrations` 최신 버전: `20260411160000`
+  - `public.star_views` 생성/반영 완료
+
+### star_views (프론트 연동 기준)
+
+- 테이블: `public.star_views`
+- 주요 컬럼:
+  - `viewer_user_id` (uuid, FK -> `profiles.id`)
+  - `star_id` (uuid, FK -> `stars.id`)
+  - `seen_at` (timestamptz, default `now()`)
+- 제약:
+  - `unique(viewer_user_id, star_id)`
+- 인덱스:
+  - `idx_star_views_star_id_seen_at (star_id, seen_at desc)`
+- RLS:
+  - enabled
+  - `star_views_select_own` (SELECT)
+  - `star_views_insert_own` (INSERT)
+  - `star_views_update_own` (UPDATE)
+- upsert 경로:
+  - `POST /rest/v1/star_views?on_conflict=viewer_user_id,star_id`
+  - `Prefer: resolution=merge-duplicates`
+
+### 스키마 고정 필드 (프론트 공유 기준)
+
+- `profiles` projection:
+  - `id`, `nickname`, `timezone`, `is_active`, `push_token`
+- `reaction_types` projection:
+  - `id`, `code`, `label_ko`, `icon`, `is_active`
+  - seed 기준 활성 타입 4건 확인
+
+### RPC 함수명/파라미터명 고정본
+
+- `create_star(p_content text, p_tag_ids bigint[], p_time_bucket text, p_emotion_intensity smallint, p_visibility_status text, p_expires_at timestamptz)`
+- `get_today_status()`
+- `get_constellation_feed(p_filter_name text, p_limit integer, p_offset integer)`
+- `get_star_detail(p_star_id uuid)`
+- `send_reaction(p_star_id uuid, p_reaction_type_id bigint)`
+
+### 알려진 에러코드 목록 (APP_ERROR_CODE)
+
+- `UNAUTHORIZED`
+- `FORBIDDEN`
+- `INVALID_ARGUMENT`
+- `INTERNAL_ERROR`
+- `DAILY_STAR_LIMIT_EXCEEDED`
+- `STAR_NOT_FOUND`
+- `BLOCKED_RELATIONSHIP`
+- `ALREADY_REACTED`
+- `DAILY_REACTION_LIMIT_EXCEEDED`
+- `SELF_REACTION_NOT_ALLOWED`
+
+### 변경 예정 여부
+
+- 현재 기준 변경 예정 항목 없음.
+
 ## create_star
 
 - 목적: 감정 별 생성 + 태그 매핑 + daily_logs 반영
