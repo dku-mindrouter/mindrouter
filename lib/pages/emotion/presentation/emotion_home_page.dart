@@ -1,11 +1,29 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../data/emotion_repository.dart';
+import '../data/supabase_emotion_data_source.dart';
+import '../domain/emotion_composer_policy.dart';
+import '../domain/emotion_exception.dart';
+import '../domain/emotion_tag.dart';
+import '../domain/emotion_validation_policy.dart';
+import '../domain/time_bucket_policy.dart';
+import '../domain/today_star_status.dart';
 
 class EmotionHomePage extends StatefulWidget {
-  const EmotionHomePage({super.key, required this.nickname});
+  const EmotionHomePage({
+    super.key,
+    required this.nickname,
+    required this.timezone,
+    required this.isPreviewMode,
+  });
 
   final String nickname;
+  final String timezone;
+  final bool isPreviewMode;
 
   @override
   State<EmotionHomePage> createState() => _EmotionHomePageState();
@@ -13,7 +31,34 @@ class EmotionHomePage extends StatefulWidget {
 
 class _EmotionHomePageState extends State<EmotionHomePage> {
   final Set<String> _selectedEmotionIds = <String>{};
+  final TextEditingController _contentController = TextEditingController();
+
   bool _isInsightSheetOpen = false;
+  bool _isLoading = true;
+  bool _isSubmitting = false;
+  String? _loadErrorMessage;
+  List<EmotionTag> _emotionTags = const <EmotionTag>[];
+  TodayStarStatus? _todayStatus;
+
+  EmotionRepository get _emotionRepository => EmotionRepository(
+    dataSource: SupabaseEmotionDataSource(client: Supabase.instance.client),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.isPreviewMode) {
+      _loadEmotionData();
+    } else {
+      _isLoading = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _contentController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +80,7 @@ class _EmotionHomePageState extends State<EmotionHomePage> {
               ),
               const SizedBox(height: 8),
               Text(
-                '가까운 감정 구슬을 1~3개 터치하세요',
+                '가까운 감정 구슬을 1~3개 선택해보세요.',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: Colors.white.withValues(alpha: 0.64),
                   height: 1.4,
@@ -43,13 +88,29 @@ class _EmotionHomePageState extends State<EmotionHomePage> {
               ),
               const SizedBox(height: 8),
               Text(
-                '2026.04.13',
+                _formatDate(DateTime.now()),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: const Color(0xFF51557A),
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
               ),
+              const SizedBox(height: 12),
+              if (_isLoading)
+                const _EmotionStatusCard(
+                  icon: Icons.sync,
+                  message: '감정 태그와 오늘 상태를 불러오는 중입니다.',
+                )
+              else if (_loadErrorMessage != null)
+                _EmotionStatusCard(
+                  icon: Icons.error_outline,
+                  message: _loadErrorMessage!,
+                )
+              else if (_todayStatus?.hasCreatedToday == true)
+                const _EmotionStatusCard(
+                  icon: Icons.check_circle_outline,
+                  message: '오늘은 이미 별을 띄웠습니다. 내일 다시 기록할 수 있어요.',
+                ),
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
@@ -75,7 +136,7 @@ class _EmotionHomePageState extends State<EmotionHomePage> {
                           right: 0,
                           bottom: 12,
                           child: Text(
-                            '여러 감정이 겹친다면 함께 선택해주세요',
+                            '여러 감정이 겹친다면 함께 선택해도 괜찮아요',
                             textAlign: TextAlign.center,
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(
@@ -112,12 +173,48 @@ class _EmotionHomePageState extends State<EmotionHomePage> {
               selectionCount: _selectedEmotionIds.length,
               onClose: _closeInsightSheet,
               onAddEmotion: _closeInsightSheet,
-              onPrimaryAction: _showPostingPlaceholder,
+              onPrimaryAction: _submitEmotion,
+              contentController: _contentController,
+              onContentChanged: (_) => setState(() {}),
+              maxContentLength: 80,
+              primaryLabel: _isSubmitting ? '별을 띄우는 중...' : '은하수에 별 띄우기',
+              isPrimaryEnabled:
+                  !_isSubmitting &&
+                  _selectedEmotionIds.isNotEmpty &&
+                  _contentController.text.trim().isNotEmpty,
             ),
           ),
         ],
       ],
     );
+  }
+
+  Future<void> _loadEmotionData() async {
+    try {
+      final List<EmotionTag> emotionTags = await _emotionRepository
+          .fetchEmotionTags();
+      final TodayStarStatus todayStatus = await _emotionRepository
+          .fetchTodayStarStatus();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _emotionTags = emotionTags;
+        _todayStatus = todayStatus;
+        _isLoading = false;
+        _loadErrorMessage = null;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      final EmotionException exception = _emotionRepository
+          .mapToEmotionException(error);
+      setState(() {
+        _isLoading = false;
+        _loadErrorMessage = _mapEmotionErrorToMessage(exception);
+      });
+    }
   }
 
   void _toggleEmotion(_EmotionBubbleData emotion) {
@@ -148,9 +245,158 @@ class _EmotionHomePageState extends State<EmotionHomePage> {
     });
   }
 
-  void _showPostingPlaceholder() {
+  Future<void> _submitEmotion() async {
+    if (_isSubmitting) {
+      return;
+    }
+
+    if (widget.isPreviewMode) {
+      _showSnackBar('Preview Mode에서는 실제 별 저장이 동작하지 않습니다.');
+      return;
+    }
+
+    if (_isLoading) {
+      _showSnackBar('아직 감정 태그를 불러오는 중입니다.');
+      return;
+    }
+
+    if (_todayStatus?.hasCreatedToday == true) {
+      _showSnackBar('오늘은 이미 별을 띄웠습니다.');
+      return;
+    }
+
+    final String content = _contentController.text.trim();
+    if (content.isEmpty) {
+      _showSnackBar('별과 함께 남길 글을 입력해 주세요.');
+      return;
+    }
+
+    final List<EmotionTag> selectedTags = _resolveSelectedEmotionTags();
+    if (selectedTags.length != _selectedEmotionIds.length) {
+      _showSnackBar('선택한 감정을 아직 서버 태그와 완전히 연결하지 못했습니다.');
+      return;
+    }
+
+    final List<int> tagIds = selectedTags
+        .map((EmotionTag tag) => tag.id)
+        .toList(growable: false);
+
+    final bool canSubmit = checkCanSubmitEmotion(
+      tagIds: tagIds,
+      isSubmitting: _isSubmitting,
+    );
+    if (!canSubmit) {
+      _showSnackBar('감정을 1개 이상 선택한 뒤 다시 시도해 주세요.');
+      return;
+    }
+
+    try {
+      await checkEmotionTagLimit(tagIds: tagIds, maxCount: 3);
+      await checkEmotionContentPolicy(content: content, maxLength: 80);
+
+      setState(() {
+        _isSubmitting = true;
+      });
+
+      await _emotionRepository.createStar(
+        content: content,
+        tagIds: tagIds,
+        timeBucket: getTimeBucketByLocalTime(
+          now: DateTime.now(),
+          timezone: widget.timezone,
+        ),
+        visibilityStatus: 'public',
+        emotionIntensity: math.min(tagIds.length, 5),
+      );
+
+      final TodayStarStatus refreshedStatus = await _emotionRepository
+          .fetchTodayStarStatus();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isSubmitting = false;
+        _selectedEmotionIds.clear();
+        _contentController.clear();
+        _isInsightSheetOpen = false;
+        _todayStatus = refreshedStatus;
+      });
+
+      _showSnackBar('오늘의 감정을 은하수에 기록했습니다.');
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      final EmotionException exception = _emotionRepository
+          .mapToEmotionException(error);
+      setState(() {
+        _isSubmitting = false;
+      });
+      _showSnackBar(_mapEmotionErrorToMessage(exception));
+    }
+  }
+
+  List<EmotionTag> _resolveSelectedEmotionTags() {
+    final Map<String, EmotionTag> tagsByName = <String, EmotionTag>{
+      for (final EmotionTag tag in _emotionTags) _normalizeTagName(tag.nameKo): tag,
+    };
+
+    final List<EmotionTag> resolved = <EmotionTag>[];
+    for (final _EmotionBubbleData emotion in _emotionOptions) {
+      if (!_selectedEmotionIds.contains(emotion.id)) {
+        continue;
+      }
+
+      final List<String> aliases = _emotionTagAliases[emotion.id] ??
+          <String>[emotion.name.replaceFirst('#', '')];
+
+      EmotionTag? matchedTag;
+      for (final String alias in aliases) {
+        matchedTag = tagsByName[_normalizeTagName(alias)];
+        if (matchedTag != null) {
+          break;
+        }
+      }
+
+      if (matchedTag != null) {
+        resolved.add(matchedTag);
+      }
+    }
+
+    return resolved;
+  }
+
+  String _normalizeTagName(String raw) {
+    return raw.replaceAll('#', '').replaceAll(' ', '').trim();
+  }
+
+  String _mapEmotionErrorToMessage(EmotionException exception) {
+    switch (exception.code) {
+      case EmotionErrorCode.unauthorized:
+        return '익명 로그인 상태를 확인한 뒤 다시 시도해 주세요.';
+      case EmotionErrorCode.forbidden:
+        return '프로필 또는 권한 상태 때문에 저장할 수 없습니다.';
+      case EmotionErrorCode.tagLimitExceeded:
+        return '감정은 최대 3개까지 선택할 수 있어요.';
+      case EmotionErrorCode.contentTooLong:
+        return '글은 80자 이내로 입력해 주세요.';
+      case EmotionErrorCode.contentBlockedWord:
+        return '입력한 글에 제한된 표현이 포함되어 있습니다.';
+      case EmotionErrorCode.dailyStarLimitExceeded:
+        return '오늘은 이미 별을 띄웠습니다.';
+      case EmotionErrorCode.invalidArgument:
+        return '선택한 감정 또는 입력값이 서버 조건과 맞지 않습니다.';
+      default:
+        return exception.message ?? '별 띄우기 중 문제가 발생했습니다.';
+    }
+  }
+
+  void _showSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('별 띄우기와 미션 연결은 다음 단계에서 실제 데이터와 붙일 예정입니다.')),
+      SnackBar(content: Text(message)),
     );
   }
 
@@ -162,8 +408,9 @@ class _EmotionHomePageState extends State<EmotionHomePage> {
     if (_selectedEmotionIds.contains('depression') &&
         _selectedEmotionIds.contains('insomnia')) {
       return const _InsightData(
-        title: '수면 사이클이 흔들리고 계신가요?',
-        description: '우울감과 불면이 겹칠 때는 무리하게 잠을 청하기보다, 호흡을 천천히 가라앉히는 루틴이 먼저 필요해요.',
+        title: '불면이 우울감을 더 흔드는 밤이에요',
+        description:
+            '우울감과 불면이 겹칠 때는 무리하게 잠을 청하기보다, 호흡을 천천히 가라앉히는 루틴이 먼저 필요해요.',
         badge: '수면 사이클 안정화',
         accentColor: Color(0xFF4753A6),
       );
@@ -172,16 +419,17 @@ class _EmotionHomePageState extends State<EmotionHomePage> {
     if (_selectedEmotionIds.contains('depression') &&
         _selectedEmotionIds.contains('exhaustion')) {
       return const _InsightData(
-        title: '에너지가 많이 소진된 하루였네요',
-        description: '우울함과 지침이 함께 오면 해결보다 회복이 우선일 수 있어요. 오늘은 쉬는 계획을 세워도 괜찮습니다.',
-        badge: '완전한 휴식 필요',
+        title: '에너지가 많이 떨어진 하루였어요',
+        description:
+            '우울함과 지침이 함께 오면 해결보다 회복이 우선일 수 있어요. 오늘은 쉬는 계획을 세워도 괜찮습니다.',
+        badge: '안전한 휴식 필요',
         accentColor: Color(0xFFB28A43),
       );
     }
 
     if (_selectedEmotionIds.contains('depression')) {
       return const _InsightData(
-        title: '마음이 무겁게 가라앉는 밤입니다',
+        title: '마음이 무겁게 가라앉은 밤입니다',
         description:
             '우울함은 나약함이 아니라 지나가는 상태예요. 지금의 감정을 이름 붙이는 것만으로도 충분히 잘하고 있어요.',
         badge: '조용한 위로',
@@ -195,10 +443,17 @@ class _EmotionHomePageState extends State<EmotionHomePage> {
 
     return _InsightData(
       title: '${primary.name}이 지금의 중심 감정으로 보여요',
-      description: '복합적인 감정이 함께 있어도 괜찮아요. 이 감정들을 기록하면 다음 단계의 위로와 미션 설계가 쉬워집니다.',
+      description:
+          '복합적인 감정이 함께 있어도 괜찮아요. 이 감정들을 기록하면 다음 단계의 위로와 미션 설계가 쉬워집니다.',
       badge: '복합 감정 인지',
       accentColor: primary.color,
     );
+  }
+
+  String _formatDate(DateTime date) {
+    final String month = date.month.toString().padLeft(2, '0');
+    final String day = date.day.toString().padLeft(2, '0');
+    return '${date.year}.$month.$day';
   }
 }
 
@@ -226,8 +481,8 @@ class _EmotionBubble extends StatelessWidget {
         scale: selected
             ? 1.08
             : faded
-            ? 0.88
-            : 1,
+                ? 0.88
+                : 1,
         duration: const Duration(milliseconds: 220),
         child: AnimatedOpacity(
           opacity: faded ? 0.38 : 1,
@@ -304,6 +559,11 @@ class _InsightBottomSheet extends StatelessWidget {
     required this.onClose,
     required this.onAddEmotion,
     required this.onPrimaryAction,
+    required this.contentController,
+    required this.onContentChanged,
+    required this.maxContentLength,
+    required this.primaryLabel,
+    required this.isPrimaryEnabled,
   });
 
   final _InsightData insight;
@@ -311,141 +571,165 @@ class _InsightBottomSheet extends StatelessWidget {
   final VoidCallback onClose;
   final VoidCallback onAddEmotion;
   final VoidCallback onPrimaryAction;
+  final TextEditingController contentController;
+  final ValueChanged<String> onContentChanged;
+  final int maxContentLength;
+  final String primaryLabel;
+  final bool isPrimaryEnabled;
 
   @override
   Widget build(BuildContext context) {
+    final double keyboardInset = MediaQuery.of(context).viewInsets.bottom;
+
     return SafeArea(
       top: false,
-      child: Container(
-        width: double.infinity,
-        margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-        decoration: BoxDecoration(
-          color: const Color(0xFF191B34),
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(28),
-            bottom: Radius.circular(28),
+      child: AnimatedPadding(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: EdgeInsets.only(bottom: keyboardInset),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.82,
           ),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-          boxShadow: const <BoxShadow>[
-            BoxShadow(
-              color: Color(0x66000000),
-              blurRadius: 38,
-              offset: Offset(0, -10),
+          child: Container(
+            width: double.infinity,
+            margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF191B34),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(28),
+                bottom: Radius.circular(28),
+              ),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+              boxShadow: const <BoxShadow>[
+                BoxShadow(
+                  color: Color(0x66000000),
+                  blurRadius: 38,
+                  offset: Offset(0, -10),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            GestureDetector(
-              onTap: onClose,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(22, 12, 22, 0),
-                child: Center(
-                  child: Container(
-                    width: 52,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.24),
-                      borderRadius: BorderRadius.circular(999),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                GestureDetector(
+                  onTap: onClose,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(22, 12, 22, 0),
+                    child: Center(
+                      child: Container(
+                        width: 52,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.24),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(22, 18, 22, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Row(
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(22, 18, 22, 18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Row(
+                          children: <Widget>[
+                            Icon(
+                              Icons.auto_awesome,
+                              color: insight.accentColor.withValues(alpha: 0.95),
+                              size: 16,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '심리 스니펫 · COGNITIVE INSIGHT',
+                              style: TextStyle(
+                                color: insight.accentColor.withValues(alpha: 0.9),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+                        Text(
+                          '"${insight.title}"',
+                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 22,
+                            height: 1.25,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          insight.description,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Colors.white.withValues(alpha: 0.72),
+                            fontSize: 15,
+                            height: 1.65,
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        _EmotionContentField(
+                          controller: contentController,
+                          onChanged: onContentChanged,
+                          maxLength: maxContentLength,
+                        ),
+                        const SizedBox(height: 18),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: const <Widget>[
+                            _InsightTag(
+                              label: '마음 챙김',
+                              color: Color(0xFFB1794E),
+                              dotColor: Color(0xFFE0A35E),
+                            ),
+                            _InsightTag(
+                              label: '7일 연속 기록',
+                              color: Color(0xFF5857C3),
+                              dotColor: Color(0xFF8B84FF),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(22, 16, 22, 18),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      top: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+                    ),
+                  ),
+                  child: Row(
                     children: <Widget>[
-                      Icon(
-                        Icons.auto_awesome,
-                        color: insight.accentColor.withValues(alpha: 0.95),
-                        size: 16,
+                      Flexible(
+                        flex: 8,
+                        child: _SheetSecondaryButton(
+                          onPressed: onAddEmotion,
+                          label: '감정 추가 ($selectionCount/3)',
+                        ),
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '심리 스니펫 · COGNITIVE INSIGHT',
-                        style: TextStyle(
-                          color: insight.accentColor.withValues(alpha: 0.9),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.2,
+                      const SizedBox(width: 12),
+                      Flexible(
+                        flex: 12,
+                        child: _SheetPrimaryButton(
+                          onPressed: isPrimaryEnabled ? onPrimaryAction : null,
+                          label: primaryLabel,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 18),
-                  Text(
-                    '"${insight.title}"',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 22,
-                      height: 1.25,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    insight.description,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.white.withValues(alpha: 0.72),
-                      fontSize: 15,
-                      height: 1.65,
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: const <Widget>[
-                      _InsightTag(
-                        label: '마음 챙김',
-                        color: Color(0xFFB1794E),
-                        dotColor: Color(0xFFE0A35E),
-                      ),
-                      _InsightTag(
-                        label: '7일 연속 기록',
-                        color: Color(0xFF5857C3),
-                        dotColor: Color(0xFF8B84FF),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 22),
-            Container(
-              padding: const EdgeInsets.fromLTRB(22, 16, 22, 18),
-              decoration: BoxDecoration(
-                border: Border(
-                  top: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
                 ),
-              ),
-              child: Row(
-                children: <Widget>[
-                  Flexible(
-                    flex: 8,
-                    child: _SheetSecondaryButton(
-                      onPressed: onAddEmotion,
-                      label: '감정 추가 ($selectionCount/3)',
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Flexible(
-                    flex: 12,
-                    child: _SheetPrimaryButton(
-                      onPressed: onPrimaryAction,
-                      label: '은하수에 별 띄우기',
-                    ),
-                  ),
-                ],
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -482,7 +766,7 @@ class _SheetSecondaryButton extends StatelessWidget {
 class _SheetPrimaryButton extends StatelessWidget {
   const _SheetPrimaryButton({required this.onPressed, required this.label});
 
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final String label;
 
   @override
@@ -492,14 +776,16 @@ class _SheetPrimaryButton extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          gradient: const LinearGradient(
+          gradient: LinearGradient(
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
-            colors: <Color>[
-              Color(0xFFC18C6F),
-              Color(0xFFB08EB7),
-              Color(0xFF8F6ED8),
-            ],
+            colors: onPressed == null
+                ? const <Color>[Color(0xFF575A76), Color(0xFF4D506A)]
+                : const <Color>[
+                    Color(0xFFC18C6F),
+                    Color(0xFFB08EB7),
+                    Color(0xFF8F6ED8),
+                  ],
           ),
           boxShadow: const <BoxShadow>[
             BoxShadow(
@@ -537,6 +823,121 @@ class _SheetPrimaryButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _EmotionStatusCard extends StatelessWidget {
+  const _EmotionStatusCard({required this.icon, required this.message});
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF171A2C),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(icon, color: const Color(0xFF8B84FF), size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.82),
+                height: 1.45,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmotionContentField extends StatelessWidget {
+  const _EmotionContentField({
+    required this.controller,
+    required this.onChanged,
+    required this.maxLength,
+  });
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final int maxLength;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: controller,
+      builder: (
+        BuildContext context,
+        TextEditingValue value,
+        Widget? child,
+      ) {
+        final int currentLength = value.text.length;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              '별과 함께 남길 글',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: controller,
+              onChanged: onChanged,
+              maxLines: 4,
+              minLines: 3,
+              maxLength: maxLength,
+              style: const TextStyle(color: Colors.white, height: 1.45),
+              decoration: InputDecoration(
+                hintText: '지금 마음을 짧게 적어보세요.',
+                hintStyle: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.34),
+                ),
+                counterText: '',
+                filled: true,
+                fillColor: const Color(0xFF222540),
+                contentPadding: const EdgeInsets.all(16),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  borderSide: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.08),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  borderSide: const BorderSide(color: Color(0xFF8B84FF)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                '$currentLength/$maxLength',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.5),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -635,6 +1036,17 @@ class _TinyStar extends StatelessWidget {
   }
 }
 
+const Map<String, List<String>> _emotionTagAliases = <String, List<String>>{
+  'lethargy': <String>['무기력'],
+  'calm': <String>['안정', '안정감'],
+  'emptiness': <String>['공허함'],
+  'depression': <String>['외로움', '번아웃'],
+  'exhaustion': <String>['지침'],
+  'insomnia': <String>['불면'],
+  'anxiety': <String>['불안'],
+  'irritation': <String>['답답함'],
+};
+
 const List<_EmotionBubbleData> _emotionOptions = <_EmotionBubbleData>[
   _EmotionBubbleData(
     id: 'lethargy',
@@ -642,15 +1054,15 @@ const List<_EmotionBubbleData> _emotionOptions = <_EmotionBubbleData>[
     color: Color(0xFFB68355),
     left: 36,
     top: 28,
-    subLabel: '텅 빈 느낌',
+    subLabel: '몸이 무거워',
   ),
   _EmotionBubbleData(
     id: 'calm',
-    name: '#잔잔함',
+    name: '#안정',
     color: Color(0xFF6FB1A9),
     left: 188,
     top: 84,
-    subLabel: '평온',
+    subLabel: '잔잔함',
   ),
   _EmotionBubbleData(
     id: 'emptiness',
@@ -674,7 +1086,7 @@ const List<_EmotionBubbleData> _emotionOptions = <_EmotionBubbleData>[
     color: Color(0xFFC1A34A),
     left: 36,
     top: 231,
-    subLabel: '다 쏟아냈어',
+    subLabel: '너무 지쳤어',
   ),
   _EmotionBubbleData(
     id: 'insomnia',
@@ -694,7 +1106,7 @@ const List<_EmotionBubbleData> _emotionOptions = <_EmotionBubbleData>[
   ),
   _EmotionBubbleData(
     id: 'irritation',
-    name: '#짜증',
+    name: '#답답함',
     color: Color(0xFFAF5A71),
     left: 188,
     top: 341,
