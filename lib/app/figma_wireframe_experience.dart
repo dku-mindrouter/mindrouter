@@ -293,7 +293,11 @@ class _MindRouterShellState extends State<_MindRouterShell> {
   @override
   Widget build(BuildContext context) {
     final List<Widget> pages = <Widget>[
-      EmotionHomePage(nickname: widget.nickname),
+      EmotionHomePage(
+        nickname: widget.nickname,
+        timezone: widget.timezone,
+        isPreviewMode: widget.previewMessage != null,
+      ),
       const ConstellationPage(),
       const ComfortPage(),
       ProfilePage(
