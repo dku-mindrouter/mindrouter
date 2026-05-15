@@ -63,6 +63,9 @@ class _EmotionHomePageState extends State<EmotionHomePage> {
   @override
   Widget build(BuildContext context) {
     final _InsightData? insight = _resolveInsight();
+    final Map<String, EmotionTag> tagsByOptionId = _resolveTagsByOptionId();
+    final bool isComposerLocked = _isComposerLocked;
+    final List<String> missingTagLabels = _missingTagLabels(tagsByOptionId);
 
     return Stack(
       children: <Widget>[
@@ -105,11 +108,19 @@ class _EmotionHomePageState extends State<EmotionHomePage> {
                 _EmotionStatusCard(
                   icon: Icons.error_outline,
                   message: _loadErrorMessage!,
+                  actionLabel: '다시 시도',
+                  onAction: _loadEmotionData,
                 )
               else if (_todayStatus?.hasCreatedToday == true)
                 const _EmotionStatusCard(
                   icon: Icons.check_circle_outline,
                   message: '오늘은 이미 별을 띄웠습니다. 내일 다시 기록할 수 있어요.',
+                )
+              else if (missingTagLabels.isNotEmpty)
+                _EmotionStatusCard(
+                  icon: Icons.info_outline,
+                  message:
+                      '서버 감정 태그와 연결되지 않은 구슬은 잠시 비활성화했어요: ${missingTagLabels.join(', ')}',
                 ),
               const SizedBox(height: 16),
               SizedBox(
@@ -125,10 +136,19 @@ class _EmotionHomePageState extends State<EmotionHomePage> {
                           (_EmotionBubbleData emotion) => _EmotionBubble(
                             data: emotion,
                             selected: _selectedEmotionIds.contains(emotion.id),
+                            enabled:
+                                !isComposerLocked &&
+                                _isEmotionAvailable(
+                                  emotion: emotion,
+                                  tagsByOptionId: tagsByOptionId,
+                                ),
                             faded:
                                 _selectedEmotionIds.isNotEmpty &&
                                 !_selectedEmotionIds.contains(emotion.id),
-                            onTap: () => _toggleEmotion(emotion),
+                            onTap: () => _toggleEmotion(
+                              emotion,
+                              tagsByOptionId: tagsByOptionId,
+                            ),
                           ),
                         ),
                         Positioned(
@@ -179,9 +199,11 @@ class _EmotionHomePageState extends State<EmotionHomePage> {
               maxContentLength: 80,
               primaryLabel: _isSubmitting ? '별을 띄우는 중...' : '은하수에 별 띄우기',
               isPrimaryEnabled:
+                  !isComposerLocked &&
                   !_isSubmitting &&
                   _selectedEmotionIds.isNotEmpty &&
-                  _contentController.text.trim().isNotEmpty,
+                  _contentController.text.trim().isNotEmpty &&
+                  _selectedEmotionIds.every(tagsByOptionId.containsKey),
             ),
           ),
         ],
@@ -190,6 +212,11 @@ class _EmotionHomePageState extends State<EmotionHomePage> {
   }
 
   Future<void> _loadEmotionData() async {
+    setState(() {
+      _isLoading = true;
+      _loadErrorMessage = null;
+    });
+
     try {
       final List<EmotionTag> emotionTags = await _emotionRepository
           .fetchEmotionTags();
@@ -202,7 +229,14 @@ class _EmotionHomePageState extends State<EmotionHomePage> {
         _emotionTags = emotionTags;
         _todayStatus = todayStatus;
         _isLoading = false;
-        _loadErrorMessage = null;
+        _loadErrorMessage = emotionTags.isEmpty
+            ? '사용 가능한 감정 태그를 찾지 못했습니다. seed 데이터를 확인해 주세요.'
+            : null;
+        if (todayStatus.hasCreatedToday || emotionTags.isEmpty) {
+          _selectedEmotionIds.clear();
+          _contentController.clear();
+          _isInsightSheetOpen = false;
+        }
       });
     } catch (error) {
       if (!mounted) {
@@ -213,11 +247,29 @@ class _EmotionHomePageState extends State<EmotionHomePage> {
       setState(() {
         _isLoading = false;
         _loadErrorMessage = _mapEmotionErrorToMessage(exception);
+        _selectedEmotionIds.clear();
+        _isInsightSheetOpen = false;
       });
     }
   }
 
-  void _toggleEmotion(_EmotionBubbleData emotion) {
+  void _toggleEmotion(
+    _EmotionBubbleData emotion, {
+    required Map<String, EmotionTag> tagsByOptionId,
+  }) {
+    if (_isComposerLocked) {
+      _showSnackBar(_composerLockedMessage);
+      return;
+    }
+
+    if (!_isEmotionAvailable(
+      emotion: emotion,
+      tagsByOptionId: tagsByOptionId,
+    )) {
+      _showSnackBar('${emotion.name}은 아직 서버 감정 태그와 연결되지 않았습니다.');
+      return;
+    }
+
     setState(() {
       if (_selectedEmotionIds.contains(emotion.id)) {
         _selectedEmotionIds.remove(emotion.id);
@@ -271,7 +323,10 @@ class _EmotionHomePageState extends State<EmotionHomePage> {
       return;
     }
 
-    final List<EmotionTag> selectedTags = _resolveSelectedEmotionTags();
+    final Map<String, EmotionTag> tagsByOptionId = _resolveTagsByOptionId();
+    final List<EmotionTag> selectedTags = _resolveSelectedEmotionTags(
+      tagsByOptionId: tagsByOptionId,
+    );
     if (selectedTags.length != _selectedEmotionIds.length) {
       _showSnackBar('선택한 감정을 아직 서버 태그와 완전히 연결하지 못했습니다.');
       return;
@@ -339,34 +394,114 @@ class _EmotionHomePageState extends State<EmotionHomePage> {
     }
   }
 
-  List<EmotionTag> _resolveSelectedEmotionTags() {
+  Map<String, EmotionTag> _resolveTagsByOptionId() {
+    if (widget.isPreviewMode) {
+      return <String, EmotionTag>{
+        for (final _EmotionBubbleData emotion in _emotionOptions)
+          emotion.id: EmotionTag(
+            id: _emotionOptions.indexOf(emotion) + 1,
+            nameKo: emotion.name.replaceFirst('#', ''),
+            groupName: 'preview',
+            priority: 0,
+            isActive: true,
+          ),
+      };
+    }
+
     final Map<String, EmotionTag> tagsByName = <String, EmotionTag>{
-      for (final EmotionTag tag in _emotionTags) _normalizeTagName(tag.nameKo): tag,
+      for (final EmotionTag tag in _emotionTags)
+        _normalizeTagName(tag.nameKo): tag,
     };
 
+    final Map<String, EmotionTag> tagsByOptionId = <String, EmotionTag>{};
+    for (final _EmotionBubbleData emotion in _emotionOptions) {
+      final EmotionTag? matchedTag = _resolveTagForEmotion(
+        emotion: emotion,
+        tagsByName: tagsByName,
+      );
+      if (matchedTag != null) {
+        tagsByOptionId[emotion.id] = matchedTag;
+      }
+    }
+    return tagsByOptionId;
+  }
+
+  List<EmotionTag> _resolveSelectedEmotionTags({
+    required Map<String, EmotionTag> tagsByOptionId,
+  }) {
     final List<EmotionTag> resolved = <EmotionTag>[];
     for (final _EmotionBubbleData emotion in _emotionOptions) {
       if (!_selectedEmotionIds.contains(emotion.id)) {
         continue;
       }
 
-      final List<String> aliases = _emotionTagAliases[emotion.id] ??
-          <String>[emotion.name.replaceFirst('#', '')];
-
-      EmotionTag? matchedTag;
-      for (final String alias in aliases) {
-        matchedTag = tagsByName[_normalizeTagName(alias)];
-        if (matchedTag != null) {
-          break;
-        }
-      }
-
+      final EmotionTag? matchedTag = tagsByOptionId[emotion.id];
       if (matchedTag != null) {
         resolved.add(matchedTag);
       }
     }
 
     return resolved;
+  }
+
+  EmotionTag? _resolveTagForEmotion({
+    required _EmotionBubbleData emotion,
+    required Map<String, EmotionTag> tagsByName,
+  }) {
+    final List<String> aliases =
+        _emotionTagAliases[emotion.id] ??
+        <String>[emotion.name.replaceFirst('#', '')];
+
+    for (final String alias in aliases) {
+      final EmotionTag? matchedTag = tagsByName[_normalizeTagName(alias)];
+      if (matchedTag != null) {
+        return matchedTag;
+      }
+    }
+    return null;
+  }
+
+  bool _isEmotionAvailable({
+    required _EmotionBubbleData emotion,
+    required Map<String, EmotionTag> tagsByOptionId,
+  }) {
+    return widget.isPreviewMode || tagsByOptionId.containsKey(emotion.id);
+  }
+
+  List<String> _missingTagLabels(Map<String, EmotionTag> tagsByOptionId) {
+    if (widget.isPreviewMode || _isLoading || _loadErrorMessage != null) {
+      return const <String>[];
+    }
+    return _emotionOptions
+        .where(
+          (_EmotionBubbleData emotion) =>
+              !tagsByOptionId.containsKey(emotion.id),
+        )
+        .map((_EmotionBubbleData emotion) => emotion.name)
+        .toList(growable: false);
+  }
+
+  bool get _isComposerLocked {
+    return _isLoading ||
+        _loadErrorMessage != null ||
+        _isSubmitting ||
+        _todayStatus?.hasCreatedToday == true;
+  }
+
+  String get _composerLockedMessage {
+    if (_isLoading) {
+      return '감정 태그를 불러온 뒤 선택할 수 있어요.';
+    }
+    if (_loadErrorMessage != null) {
+      return '감정 태그를 다시 불러온 뒤 선택해 주세요.';
+    }
+    if (_todayStatus?.hasCreatedToday == true) {
+      return '오늘은 이미 별을 띄웠습니다.';
+    }
+    if (_isSubmitting) {
+      return '별을 띄우는 중입니다.';
+    }
+    return '지금은 감정을 선택할 수 없습니다.';
   }
 
   String _normalizeTagName(String raw) {
@@ -395,9 +530,9 @@ class _EmotionHomePageState extends State<EmotionHomePage> {
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   _InsightData? _resolveInsight() {
@@ -408,10 +543,9 @@ class _EmotionHomePageState extends State<EmotionHomePage> {
     if (_selectedEmotionIds.contains('depression') &&
         _selectedEmotionIds.contains('insomnia')) {
       return const _InsightData(
-        title: '불면이 우울감을 더 흔드는 밤이에요',
-        description:
-            '우울감과 불면이 겹칠 때는 무리하게 잠을 청하기보다, 호흡을 천천히 가라앉히는 루틴이 먼저 필요해요.',
-        badge: '수면 사이클 안정화',
+        title: '외로움과 위로가 함께 필요한 밤이에요',
+        description: '마음이 가라앉고 누군가의 온기가 필요할 때는 혼자 버티는 대신 작은 연결을 남겨도 괜찮아요.',
+        badge: '위로 연결',
         accentColor: Color(0xFF4753A6),
       );
     }
@@ -420,8 +554,7 @@ class _EmotionHomePageState extends State<EmotionHomePage> {
         _selectedEmotionIds.contains('exhaustion')) {
       return const _InsightData(
         title: '에너지가 많이 떨어진 하루였어요',
-        description:
-            '우울함과 지침이 함께 오면 해결보다 회복이 우선일 수 있어요. 오늘은 쉬는 계획을 세워도 괜찮습니다.',
+        description: '우울함과 지침이 함께 오면 해결보다 회복이 우선일 수 있어요. 오늘은 쉬는 계획을 세워도 괜찮습니다.',
         badge: '안전한 휴식 필요',
         accentColor: Color(0xFFB28A43),
       );
@@ -443,8 +576,7 @@ class _EmotionHomePageState extends State<EmotionHomePage> {
 
     return _InsightData(
       title: '${primary.name}이 지금의 중심 감정으로 보여요',
-      description:
-          '복합적인 감정이 함께 있어도 괜찮아요. 이 감정들을 기록하면 다음 단계의 위로와 미션 설계가 쉬워집니다.',
+      description: '복합적인 감정이 함께 있어도 괜찮아요. 이 감정들을 기록하면 다음 단계의 위로와 미션 설계가 쉬워집니다.',
       badge: '복합 감정 인지',
       accentColor: primary.color,
     );
@@ -461,12 +593,14 @@ class _EmotionBubble extends StatelessWidget {
   const _EmotionBubble({
     required this.data,
     required this.selected,
+    required this.enabled,
     required this.faded,
     required this.onTap,
   });
 
   final _EmotionBubbleData data;
   final bool selected;
+  final bool enabled;
   final bool faded;
   final VoidCallback onTap;
 
@@ -481,11 +615,15 @@ class _EmotionBubble extends StatelessWidget {
         scale: selected
             ? 1.08
             : faded
-                ? 0.88
-                : 1,
+            ? 0.88
+            : 1,
         duration: const Duration(milliseconds: 220),
         child: AnimatedOpacity(
-          opacity: faded ? 0.38 : 1,
+          opacity: !enabled
+              ? 0.24
+              : faded
+              ? 0.38
+              : 1,
           duration: const Duration(milliseconds: 220),
           child: GestureDetector(
             onTap: onTap,
@@ -510,7 +648,13 @@ class _EmotionBubble extends StatelessWidget {
                   ),
                 ],
                 border: Border.all(
-                  color: Colors.white.withValues(alpha: selected ? 0.32 : 0.12),
+                  color: Colors.white.withValues(
+                    alpha: !enabled
+                        ? 0.06
+                        : selected
+                        ? 0.32
+                        : 0.12,
+                  ),
                 ),
               ),
               child: Center(
@@ -639,14 +783,18 @@ class _InsightBottomSheet extends StatelessWidget {
                           children: <Widget>[
                             Icon(
                               Icons.auto_awesome,
-                              color: insight.accentColor.withValues(alpha: 0.95),
+                              color: insight.accentColor.withValues(
+                                alpha: 0.95,
+                              ),
                               size: 16,
                             ),
                             const SizedBox(width: 8),
                             Text(
                               '심리 스니펫 · COGNITIVE INSIGHT',
                               style: TextStyle(
-                                color: insight.accentColor.withValues(alpha: 0.9),
+                                color: insight.accentColor.withValues(
+                                  alpha: 0.9,
+                                ),
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 0.2,
@@ -657,21 +805,23 @@ class _InsightBottomSheet extends StatelessWidget {
                         const SizedBox(height: 18),
                         Text(
                           '"${insight.title}"',
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 22,
-                            height: 1.25,
-                          ),
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 22,
+                                height: 1.25,
+                              ),
                         ),
                         const SizedBox(height: 16),
                         Text(
                           insight.description,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.white.withValues(alpha: 0.72),
-                            fontSize: 15,
-                            height: 1.65,
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Colors.white.withValues(alpha: 0.72),
+                                fontSize: 15,
+                                height: 1.65,
+                              ),
                         ),
                         const SizedBox(height: 18),
                         _EmotionContentField(
@@ -704,7 +854,9 @@ class _InsightBottomSheet extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(22, 16, 22, 18),
                   decoration: BoxDecoration(
                     border: Border(
-                      top: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+                      top: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.06),
+                      ),
                     ),
                   ),
                   child: Row(
@@ -828,10 +980,17 @@ class _SheetPrimaryButton extends StatelessWidget {
 }
 
 class _EmotionStatusCard extends StatelessWidget {
-  const _EmotionStatusCard({required this.icon, required this.message});
+  const _EmotionStatusCard({
+    required this.icon,
+    required this.message,
+    this.actionLabel,
+    this.onAction,
+  });
 
   final IconData icon;
   final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -849,12 +1008,34 @@ class _EmotionStatusCard extends StatelessWidget {
           Icon(icon, color: const Color(0xFF8B84FF), size: 18),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              message,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.82),
-                height: 1.45,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  message,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.82),
+                    height: 1.45,
+                  ),
+                ),
+                if (actionLabel != null && onAction != null) ...<Widget>[
+                  const SizedBox(height: 10),
+                  TextButton.icon(
+                    onPressed: onAction,
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFFC7D2FE),
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(0, 32),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    icon: const Icon(Icons.refresh_rounded, size: 16),
+                    label: Text(
+                      actionLabel!,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         ],
@@ -878,11 +1059,7 @@ class _EmotionContentField extends StatelessWidget {
   Widget build(BuildContext context) {
     return ValueListenableBuilder<TextEditingValue>(
       valueListenable: controller,
-      builder: (
-        BuildContext context,
-        TextEditingValue value,
-        Widget? child,
-      ) {
+      builder: (BuildContext context, TextEditingValue value, Widget? child) {
         final int currentLength = value.text.length;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1038,11 +1215,11 @@ class _TinyStar extends StatelessWidget {
 
 const Map<String, List<String>> _emotionTagAliases = <String, List<String>>{
   'lethargy': <String>['무기력'],
-  'calm': <String>['안정', '안정감'],
+  'calm': <String>['잔잔함', '안도'],
   'emptiness': <String>['공허함'],
   'depression': <String>['외로움', '번아웃'],
   'exhaustion': <String>['지침'],
-  'insomnia': <String>['불면'],
+  'insomnia': <String>['위로받고 싶음'],
   'anxiety': <String>['불안'],
   'irritation': <String>['답답함'],
 };
@@ -1058,11 +1235,11 @@ const List<_EmotionBubbleData> _emotionOptions = <_EmotionBubbleData>[
   ),
   _EmotionBubbleData(
     id: 'calm',
-    name: '#안정',
+    name: '#잔잔함',
     color: Color(0xFF6FB1A9),
     left: 188,
     top: 84,
-    subLabel: '잔잔함',
+    subLabel: '안도감',
   ),
   _EmotionBubbleData(
     id: 'emptiness',
@@ -1090,11 +1267,11 @@ const List<_EmotionBubbleData> _emotionOptions = <_EmotionBubbleData>[
   ),
   _EmotionBubbleData(
     id: 'insomnia',
-    name: '#불면',
+    name: '#위로',
     color: Color(0xFF555A8A),
     left: 153,
     top: 268,
-    subLabel: '잠이 안 와',
+    subLabel: '곁이 필요해',
   ),
   _EmotionBubbleData(
     id: 'anxiety',
