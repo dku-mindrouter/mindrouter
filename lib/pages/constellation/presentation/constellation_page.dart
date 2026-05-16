@@ -1284,7 +1284,9 @@ class _ReactionGrid extends StatelessWidget {
         crossAxisCount: 2,
         crossAxisSpacing: 14,
         mainAxisSpacing: 14,
-        childAspectRatio: 1.72,
+        // Keep enough vertical room for subtitle-bearing cards (e.g. WARM_TEA)
+        // to avoid bottom overflow on narrower Android devices.
+        mainAxisExtent: 108,
       ),
       itemBuilder: (BuildContext context, int index) {
         final ReactionType reactionType = reactionTypes[index];
@@ -1377,7 +1379,7 @@ class _ReactionCard extends StatelessWidget {
                     size: 25,
                   ),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 10),
                 Text(
                   reactionType.labelKo,
                   textAlign: TextAlign.center,
@@ -1388,12 +1390,13 @@ class _ReactionCard extends StatelessWidget {
                   ),
                 ),
                 if (reactionType.code == 'WARM_TEA') ...<Widget>[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
                     '작은 온기 보내기',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.42),
                       fontSize: 11,
+                      height: 1.1,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
