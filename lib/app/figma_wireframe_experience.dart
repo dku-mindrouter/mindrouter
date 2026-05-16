@@ -298,7 +298,10 @@ class _MindRouterShellState extends State<_MindRouterShell> {
         timezone: widget.timezone,
         isPreviewMode: widget.previewMessage != null,
       ),
-      const ConstellationPage(),
+      ConstellationPage(
+        userId: widget.userId,
+        isPreviewMode: widget.previewMessage != null,
+      ),
       const ComfortPage(),
       ProfilePage(
         nickname: widget.nickname,
