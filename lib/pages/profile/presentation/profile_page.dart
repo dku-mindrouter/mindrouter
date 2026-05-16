@@ -9,12 +9,14 @@ class ProfilePage extends StatelessWidget {
     required this.timezone,
     required this.nextRoute,
     required this.userId,
+    required this.onOpenSettings,
   });
 
   final String nickname;
   final String timezone;
   final String nextRoute;
   final String userId;
+  final VoidCallback onOpenSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -31,12 +33,23 @@ class ProfilePage extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 120),
       children: <Widget>[
-        Text(
-          '내 별',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
-          ),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: Text(
+                '내 별',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            _ProfileIconButton(
+              icon: Icons.settings_outlined,
+              label: '설정 열기',
+              onPressed: onOpenSettings,
+            ),
+          ],
         ),
         const SizedBox(height: 8),
         Text(
@@ -234,6 +247,40 @@ class ProfilePage extends StatelessWidget {
         _ProfileField(label: 'next route', value: nextRoute),
         _ProfileField(label: 'user id', value: userId),
       ],
+    );
+  }
+}
+
+class _ProfileIconButton extends StatelessWidget {
+  const _ProfileIconButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: label,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: Icon(icon, color: Colors.white.withValues(alpha: 0.82)),
+        ),
+      ),
     );
   }
 }

@@ -4,6 +4,8 @@ import '../pages/comfort/presentation/comfort_page.dart';
 import '../pages/constellation/presentation/constellation_page.dart';
 import '../pages/emotion/presentation/emotion_home_page.dart';
 import '../pages/profile/presentation/profile_page.dart';
+import '../pages/settings/presentation/settings_page.dart';
+import '../shared/widgets/space_backdrop.dart';
 
 class FigmaWireframeExperience extends StatefulWidget {
   const FigmaWireframeExperience({
@@ -73,7 +75,7 @@ class _OnboardingFlowState extends State<_OnboardingFlow> {
       backgroundColor: const Color(0xFF0A0B14),
       body: Stack(
         children: <Widget>[
-          const _SpaceBackdrop(),
+          const SpaceBackdrop(),
           SafeArea(
             child: LayoutBuilder(
               builder: (BuildContext context, BoxConstraints constraints) {
@@ -289,9 +291,20 @@ class _MindRouterShell extends StatefulWidget {
 
 class _MindRouterShellState extends State<_MindRouterShell> {
   int _currentIndex = 0;
+  bool _isSettingsOpen = false;
 
   @override
   Widget build(BuildContext context) {
+    final Widget profilePage = _isSettingsOpen
+        ? SettingsPage(onBack: _closeSettings)
+        : ProfilePage(
+            nickname: widget.nickname,
+            timezone: widget.timezone,
+            nextRoute: widget.nextRoute,
+            userId: widget.userId,
+            onOpenSettings: _openSettings,
+          );
+
     final List<Widget> pages = <Widget>[
       EmotionHomePage(
         nickname: widget.nickname,
@@ -303,84 +316,102 @@ class _MindRouterShellState extends State<_MindRouterShell> {
         isPreviewMode: widget.previewMessage != null,
       ),
       const ComfortPage(),
-      ProfilePage(
-        nickname: widget.nickname,
-        timezone: widget.timezone,
-        nextRoute: widget.nextRoute,
-        userId: widget.userId,
-      ),
+      profilePage,
     ];
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF0B0C15),
-      body: Stack(
-        children: <Widget>[
-          const _SpaceBackdrop(),
-          SafeArea(
-            bottom: false,
-            child: Column(
-              children: <Widget>[
-                if (widget.previewMessage != null)
-                  _PreviewModeBanner(message: widget.previewMessage!),
-                Expanded(
-                  child: IndexedStack(index: _currentIndex, children: pages),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: NavigationBarTheme(
-        data: NavigationBarThemeData(
-          backgroundColor: const Color(0xCC121320),
-          indicatorColor: const Color(0x336366F1),
-          labelTextStyle: WidgetStatePropertyAll<TextStyle>(
-            TextStyle(
-              color: Colors.white.withValues(alpha: 0.75),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          iconTheme: WidgetStateProperty.resolveWith<IconThemeData>(
-            (Set<WidgetState> states) => IconThemeData(
-              color: states.contains(WidgetState.selected)
-                  ? const Color(0xFFC7D2FE)
-                  : Colors.white.withValues(alpha: 0.45),
-            ),
-          ),
-        ),
-        child: NavigationBar(
-          height: 72,
-          selectedIndex: _currentIndex,
-          onDestinationSelected: (int index) {
-            setState(() {
-              _currentIndex = index;
-            });
-          },
-          destinations: const <NavigationDestination>[
-            NavigationDestination(
-              icon: Icon(Icons.explore_outlined),
-              selectedIcon: Icon(Icons.explore),
-              label: '오늘',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.auto_awesome_mosaic_outlined),
-              selectedIcon: Icon(Icons.auto_awesome_mosaic),
-              label: '별자리',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.favorite_border),
-              selectedIcon: Icon(Icons.favorite),
-              label: '위로',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.person_outline),
-              selectedIcon: Icon(Icons.person),
-              label: '나',
+    return PopScope(
+      canPop: !_isSettingsOpen,
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (!didPop && _isSettingsOpen) {
+          _closeSettings();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFF0B0C15),
+        body: Stack(
+          children: <Widget>[
+            const SpaceBackdrop(),
+            SafeArea(
+              bottom: false,
+              child: Column(
+                children: <Widget>[
+                  if (widget.previewMessage != null)
+                    _PreviewModeBanner(message: widget.previewMessage!),
+                  Expanded(
+                    child: IndexedStack(index: _currentIndex, children: pages),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
+        bottomNavigationBar: NavigationBarTheme(
+          data: NavigationBarThemeData(
+            backgroundColor: const Color(0xCC121320),
+            indicatorColor: const Color(0x336366F1),
+            labelTextStyle: WidgetStatePropertyAll<TextStyle>(
+              TextStyle(
+                color: Colors.white.withValues(alpha: 0.75),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            iconTheme: WidgetStateProperty.resolveWith<IconThemeData>(
+              (Set<WidgetState> states) => IconThemeData(
+                color: states.contains(WidgetState.selected)
+                    ? const Color(0xFFC7D2FE)
+                    : Colors.white.withValues(alpha: 0.45),
+              ),
+            ),
+          ),
+          child: NavigationBar(
+            height: 72,
+            selectedIndex: _currentIndex,
+            onDestinationSelected: (int index) {
+              setState(() {
+                _currentIndex = index;
+                if (index != 3) {
+                  _isSettingsOpen = false;
+                }
+              });
+            },
+            destinations: const <NavigationDestination>[
+              NavigationDestination(
+                icon: Icon(Icons.explore_outlined),
+                selectedIcon: Icon(Icons.explore),
+                label: '오늘',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.auto_awesome_mosaic_outlined),
+                selectedIcon: Icon(Icons.auto_awesome_mosaic),
+                label: '별자리',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.favorite_border),
+                selectedIcon: Icon(Icons.favorite),
+                label: '위로',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.person_outline),
+                selectedIcon: Icon(Icons.person),
+                label: '나',
+              ),
+            ],
+          ),
+        ),
       ),
     );
+  }
+
+  void _openSettings() {
+    setState(() {
+      _isSettingsOpen = true;
+    });
+  }
+
+  void _closeSettings() {
+    setState(() {
+      _isSettingsOpen = false;
+    });
   }
 }
 
@@ -444,82 +475,6 @@ class _PreviewModeBanner extends StatelessWidget {
   }
 }
 
-class _SpaceBackdrop extends StatelessWidget {
-  const _SpaceBackdrop();
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: <Widget>[
-        Positioned.fill(
-          child: DecoratedBox(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: <Color>[
-                  Color(0xFF0A0B14),
-                  Color(0xFF0F1123),
-                  Color(0xFF111427),
-                ],
-              ),
-            ),
-          ),
-        ),
-        Positioned(
-          top: -80,
-          left: -60,
-          child: _GlowOrb(size: 240, color: const Color(0x803B82F6)),
-        ),
-        Positioned(
-          bottom: 40,
-          right: -50,
-          child: _GlowOrb(size: 220, color: const Color(0x665B21B6)),
-        ),
-        Positioned(
-          top: 200,
-          right: 40,
-          child: _GlowOrb(size: 140, color: const Color(0x664DD0E1)),
-        ),
-        ..._starPositions.map(
-          (Alignment alignment) => Align(
-            alignment: alignment,
-            child: Container(
-              width: 3,
-              height: 3,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.75),
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _GlowOrb extends StatelessWidget {
-  const _GlowOrb({required this.size, required this.color});
-
-  final double size;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        boxShadow: <BoxShadow>[
-          BoxShadow(color: color, blurRadius: size / 2, spreadRadius: 8),
-        ],
-      ),
-    );
-  }
-}
-
 class _OnboardingStepData {
   const _OnboardingStepData({
     required this.title,
@@ -553,18 +508,6 @@ const List<_OnboardingStepData> _steps = <_OnboardingStepData>[
     visualBuilder: _buildBellVisual,
     note: '이 화면은 Figma 와이어프레임을 Flutter에 포팅한 초안입니다. 아직 일부 기능은 플레이스홀더 상태예요.',
   ),
-];
-
-const List<Alignment> _starPositions = <Alignment>[
-  Alignment(-0.82, -0.96),
-  Alignment(-0.32, -0.74),
-  Alignment(0.58, -0.72),
-  Alignment(0.84, -0.24),
-  Alignment(-0.74, -0.08),
-  Alignment(0.2, 0.12),
-  Alignment(-0.48, 0.48),
-  Alignment(0.76, 0.54),
-  Alignment(-0.1, 0.84),
 ];
 
 Widget _buildIntroVisual(BuildContext context) {
