@@ -1323,27 +1323,72 @@ class _ReactionGrid extends StatelessWidget {
       return const _ReactionUnavailableState();
     }
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: reactionTypes.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 14,
-        mainAxisSpacing: 14,
-        // Keep enough vertical room for subtitle-bearing cards (e.g. WARM_TEA)
-        // to avoid bottom overflow on narrower Android devices.
-        mainAxisExtent: 108,
-      ),
-      itemBuilder: (BuildContext context, int index) {
-        final ReactionType reactionType = reactionTypes[index];
-        return _ReactionCard(
-          reactionType: reactionType,
-          isEnabled: isEnabled,
-          isSelected: sentReactionType?.id == reactionType.id,
-          onTap: () => onSelect(reactionType),
-        );
-      },
+    final List<ReactionType> featuredReactions = reactionTypes
+        .where((ReactionType type) => _isFeaturedReaction(type.code))
+        .toList();
+    final List<ReactionType> regularReactions = reactionTypes
+        .where((ReactionType type) => !_isFeaturedReaction(type.code))
+        .toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        if (featuredReactions.isNotEmpty) ...<Widget>[
+          const _ReactionSectionTitle(
+            title: '특별한 위로 보내기',
+            subtitle: '실제 선물과 편지로 더 깊은 마음을 전할 수 있어요',
+          ),
+          const SizedBox(height: 12),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: featuredReactions.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 14,
+              mainAxisSpacing: 14,
+              mainAxisExtent: 126,
+            ),
+            itemBuilder: (BuildContext context, int index) {
+              final ReactionType reactionType = featuredReactions[index];
+              return _FeaturedReactionCard(
+                reactionType: reactionType,
+                isEnabled: isEnabled,
+                isSelected: sentReactionType?.id == reactionType.id,
+                onTap: () => onSelect(reactionType),
+              );
+            },
+          ),
+          const SizedBox(height: 18),
+        ],
+        if (regularReactions.isNotEmpty) ...<Widget>[
+          const _ReactionSectionTitle(
+            title: '빠른 리액션 보내기',
+            subtitle: '가볍지만 다정한 반응을 바로 전할 수 있어요',
+          ),
+          const SizedBox(height: 12),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: regularReactions.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 14,
+              mainAxisSpacing: 14,
+              mainAxisExtent: 108,
+            ),
+            itemBuilder: (BuildContext context, int index) {
+              final ReactionType reactionType = regularReactions[index];
+              return _ReactionCard(
+                reactionType: reactionType,
+                isEnabled: isEnabled,
+                isSelected: sentReactionType?.id == reactionType.id,
+                onTap: () => onSelect(reactionType),
+              );
+            },
+          ),
+        ],
+      ],
     );
   }
 }
@@ -1411,8 +1456,8 @@ class _ReactionCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
                 Container(
-                  width: 48,
-                  height: 48,
+                  width: 46,
+                  height: 46,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: const Color(0xFF24263D),
@@ -1423,10 +1468,10 @@ class _ReactionCard extends StatelessWidget {
                   child: Icon(
                     _iconForReaction(reactionType),
                     color: const Color(0xFFDDE4FF),
-                    size: 25,
+                    size: 24,
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 Text(
                   reactionType.labelKo,
                   textAlign: TextAlign.center,
@@ -1454,6 +1499,191 @@ class _ReactionCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _FeaturedReactionCard extends StatelessWidget {
+  const _FeaturedReactionCard({
+    required this.reactionType,
+    required this.isEnabled,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final ReactionType reactionType;
+  final bool isEnabled;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final _FeaturedReactionStyle style = _featuredReactionStyle(reactionType.code);
+
+    return Opacity(
+      opacity: isEnabled || isSelected ? 1 : 0.42,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isEnabled ? onTap : null,
+          borderRadius: BorderRadius.circular(22),
+          child: Ink(
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? style.primary.withValues(alpha: 0.92)
+                  : style.secondary.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: isSelected
+                    ? style.border
+                    : style.border,
+              ),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: style.primary.withValues(alpha: 0.08),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          style.badge,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.5,
+                            height: 1,
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withValues(alpha: 0.06),
+                        ),
+                        child: Icon(
+                          _iconForReaction(reactionType),
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  Text(
+                    reactionType.labelKo,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReactionSectionTitle extends StatelessWidget {
+  const _ReactionSectionTitle({
+    required this.title,
+    required this.subtitle,
+  });
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 15,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.54),
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FeaturedReactionStyle {
+  const _FeaturedReactionStyle({
+    required this.badge,
+    required this.primary,
+    required this.secondary,
+    required this.border,
+  });
+
+  final String badge;
+  final Color primary;
+  final Color secondary;
+  final Color border;
+}
+
+bool _isFeaturedReaction(String code) {
+  return code == 'WARM_COFFEE' || code == 'LETTER';
+}
+
+_FeaturedReactionStyle _featuredReactionStyle(String code) {
+  switch (code) {
+    case 'WARM_COFFEE':
+      return const _FeaturedReactionStyle(
+        badge: '커피',
+        primary: Color(0xFF8A6544),
+        secondary: Color(0xFFB58E6B),
+        border: Color(0x66D9B08A),
+      );
+    case 'LETTER':
+      return const _FeaturedReactionStyle(
+        badge: '편지',
+        primary: Color(0xFF5A5F92),
+        secondary: Color(0xFF858BC3),
+        border: Color(0x669EA6E0),
+      );
+    default:
+      return const _FeaturedReactionStyle(
+        badge: '특별',
+        primary: Color(0xFF4D577D),
+        secondary: Color(0xFF7782B3),
+        border: Color(0x668E99D8),
+      );
   }
 }
 
