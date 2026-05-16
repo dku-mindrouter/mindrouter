@@ -4,6 +4,7 @@ import '../pages/comfort/presentation/comfort_page.dart';
 import '../pages/constellation/presentation/constellation_page.dart';
 import '../pages/emotion/presentation/emotion_home_page.dart';
 import '../pages/profile/presentation/profile_page.dart';
+import '../pages/profile/presentation/today_mission_page.dart';
 import '../pages/settings/presentation/settings_page.dart';
 import '../shared/widgets/space_backdrop.dart';
 
@@ -291,19 +292,24 @@ class _MindRouterShell extends StatefulWidget {
 
 class _MindRouterShellState extends State<_MindRouterShell> {
   int _currentIndex = 0;
-  bool _isSettingsOpen = false;
+  _ProfileSubPage _profileSubPage = _ProfileSubPage.profile;
 
   @override
   Widget build(BuildContext context) {
-    final Widget profilePage = _isSettingsOpen
-        ? SettingsPage(onBack: _closeSettings)
-        : ProfilePage(
-            nickname: widget.nickname,
-            timezone: widget.timezone,
-            nextRoute: widget.nextRoute,
-            userId: widget.userId,
-            onOpenSettings: _openSettings,
-          );
+    final Widget profilePage = switch (_profileSubPage) {
+      _ProfileSubPage.settings => SettingsPage(onBack: _closeProfileSubPage),
+      _ProfileSubPage.todayMission => TodayMissionPage(
+        onBack: _closeProfileSubPage,
+      ),
+      _ProfileSubPage.profile => ProfilePage(
+        nickname: widget.nickname,
+        timezone: widget.timezone,
+        nextRoute: widget.nextRoute,
+        userId: widget.userId,
+        onOpenSettings: _openSettings,
+        onOpenMission: _openTodayMission,
+      ),
+    };
 
     final List<Widget> pages = <Widget>[
       EmotionHomePage(
@@ -320,10 +326,10 @@ class _MindRouterShellState extends State<_MindRouterShell> {
     ];
 
     return PopScope(
-      canPop: !_isSettingsOpen,
+      canPop: _profileSubPage == _ProfileSubPage.profile,
       onPopInvokedWithResult: (bool didPop, Object? result) {
-        if (!didPop && _isSettingsOpen) {
-          _closeSettings();
+        if (!didPop && _profileSubPage != _ProfileSubPage.profile) {
+          _closeProfileSubPage();
         }
       },
       child: Scaffold(
@@ -370,7 +376,7 @@ class _MindRouterShellState extends State<_MindRouterShell> {
               setState(() {
                 _currentIndex = index;
                 if (index != 3) {
-                  _isSettingsOpen = false;
+                  _profileSubPage = _ProfileSubPage.profile;
                 }
               });
             },
@@ -404,16 +410,24 @@ class _MindRouterShellState extends State<_MindRouterShell> {
 
   void _openSettings() {
     setState(() {
-      _isSettingsOpen = true;
+      _profileSubPage = _ProfileSubPage.settings;
     });
   }
 
-  void _closeSettings() {
+  void _openTodayMission() {
     setState(() {
-      _isSettingsOpen = false;
+      _profileSubPage = _ProfileSubPage.todayMission;
+    });
+  }
+
+  void _closeProfileSubPage() {
+    setState(() {
+      _profileSubPage = _ProfileSubPage.profile;
     });
   }
 }
+
+enum _ProfileSubPage { profile, settings, todayMission }
 
 class _PreviewModeBanner extends StatelessWidget {
   const _PreviewModeBanner({required this.message});

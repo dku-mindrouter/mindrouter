@@ -30,6 +30,7 @@ pages/
 - 온보딩 3단계와 기본 탭 셸이 Flutter로 포팅되어 있습니다.
 - auth, emotion, constellation, comfort, profile 화면이 각 페이지의 `presentation/`으로 분리되어 있습니다.
 - `shared/widgets/`에 첫 공통 UI 위젯(`AppPanelCard`)을 추가했습니다.
+- `shared/widgets/`에 우주 배경 공통 위젯을 분리해 온보딩과 탭 셸, 프로필 하위 화면이 같은 배경을 재사용합니다.
 - Emotion, Constellation, Reaction 일부 흐름은 Supabase RPC와 실제 연결되어 있습니다.
 - Comfort/Profile 일부 화면과 홈 인사이트성 문구는 아직 mock/placeholder 상태입니다.
 - 백엔드 계약은 [docs/api-contract.md](/Users/yuchan/Desktop/git/mindrouter/docs/api-contract.md) 기준을 따릅니다.
@@ -46,6 +47,8 @@ pages/
   `auth`, `emotion`, `constellation`, `comfort`, `profile`, `reaction` 기준으로 페이지 구조를 정리했습니다.
 - [lib/shared/widgets/app_panel_card.dart](/Users/yuchan/Desktop/git/mindrouter/lib/shared/widgets/app_panel_card.dart)
   반복되는 카드 박스 스타일을 공통 위젯으로 추출했습니다.
+- [lib/shared/widgets/space_backdrop.dart](/Users/yuchan/Desktop/git/mindrouter/lib/shared/widgets/space_backdrop.dart)
+  우주 배경을 공통 위젯으로 분리해 여러 화면에서 재사용하도록 정리했습니다.
 - [docx/](/Users/yuchan/Desktop/git/mindrouter/docx)
   구조 지침, 페이지별 문서, DB 규칙, 리팩토링 검토 메모를 프로젝트 내부 기준 문서로 정리했습니다.
 - [test/widget_test.dart](/Users/yuchan/Desktop/git/mindrouter/test/widget_test.dart)
@@ -247,6 +250,8 @@ flutter test
   - 실제 알림/추천 조회 대신 mock 카드 사용
 - Profile
   - 오늘의 별 카드, 맞춤 미션 카드, streak/위로 지표, 주간 감정 차트 UI 포팅
+  - 프로필 우상단 설정 진입점과 오늘의 맞춤 미션 상세 화면을 Profile 하위 화면으로 연결
+  - 설정 화면은 알림/앱 환경/로그아웃/계정 탈퇴 UI를 담고, 미션 화면은 스크린샷 기준의 체크리스트와 CTA를 담습니다
   - auth 결과값은 하단 상태 카드로 유지
 
 ## 검증
@@ -291,6 +296,7 @@ flutter test
 - 홈 화면의 인사이트 문구는 현재 프론트 하드코딩 상태입니다.
 - 별자리 탭의 실제 데이터는 Supabase RPC를 사용하지만, star 배치와 시각화 규칙은 현재 프론트에서 계산합니다.
 - 위로 탭의 목록 데이터는 현재 프론트 mock 상태입니다.
+- 프로필 탭의 설정/오늘의 맞춤 미션 상세 화면은 현재 프론트 placeholder 및 UI 전용입니다.
 - 실제 API 연결 전까지는 UX 검증과 화면 구조 확정용으로 사용합니다.
 
 ## Placeholder 상태
@@ -299,6 +305,7 @@ flutter test
 - 별조각/유료 따뜻한 차: 기획 검토 단계, 미구현
 - 위로 탭: mock comfort 데이터 기반 목록 상태
 - 프로필 탭: 지표/차트는 mock 데이터, auth 결과는 하단 상태 카드 노출
+- 프로필 설정/오늘의 미션 화면: 백엔드 연동 없이 프론트 전용 상태
 
 ## 참고
 

@@ -10,6 +10,7 @@ class ProfilePage extends StatelessWidget {
     required this.nextRoute,
     required this.userId,
     required this.onOpenSettings,
+    required this.onOpenMission,
   });
 
   final String nickname;
@@ -17,6 +18,7 @@ class ProfilePage extends StatelessWidget {
   final String nextRoute;
   final String userId;
   final VoidCallback onOpenSettings;
+  final VoidCallback onOpenMission;
 
   @override
   Widget build(BuildContext context) {
@@ -165,54 +167,65 @@ class ProfilePage extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        AppPanelCard(
-          padding: const EdgeInsets.all(20),
-          gradient: const LinearGradient(
-            colors: <Color>[Color(0xCC1C1E34), Color(0xCC2A2D4A)],
-          ),
-          borderColor: const Color(0x336366F1),
-          borderRadius: 28,
-          child: Row(
-            children: <Widget>[
-              Container(
-                width: 42,
-                height: 42,
-                decoration: const BoxDecoration(
-                  borderRadius: BorderRadius.all(Radius.circular(14)),
-                  gradient: LinearGradient(
-                    colors: <Color>[Color(0xFFFBBF24), Color(0xFFF97316)],
+        Semantics(
+          button: true,
+          label: '오늘의 맞춤 미션, 햇살과 함께 10분 걷기',
+          child: InkWell(
+            onTap: onOpenMission,
+            borderRadius: BorderRadius.circular(28),
+            child: AppPanelCard(
+              padding: const EdgeInsets.all(20),
+              gradient: const LinearGradient(
+                colors: <Color>[Color(0xCC1C1E34), Color(0xCC2A2D4A)],
+              ),
+              borderColor: const Color(0x336366F1),
+              borderRadius: 28,
+              child: Row(
+                children: <Widget>[
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: const BoxDecoration(
+                      borderRadius: BorderRadius.all(Radius.circular(14)),
+                      gradient: LinearGradient(
+                        colors: <Color>[Color(0xFFFBBF24), Color(0xFFF97316)],
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.wb_sunny_outlined,
+                      color: Colors.white,
+                    ),
                   ),
-                ),
-                child: const Icon(Icons.wb_sunny_outlined, color: Colors.white),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    const Text(
-                      '오늘의 맞춤 미션',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                      ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        const Text(
+                          '오늘의 맞춤 미션',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '햇살과 함께 10분 걷기',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.76),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '햇살과 함께 10분 걷기',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.76),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    color: Colors.white.withValues(alpha: 0.72),
+                  ),
+                ],
               ),
-              Icon(
-                Icons.arrow_forward_rounded,
-                color: Colors.white.withValues(alpha: 0.72),
-              ),
-            ],
+            ),
           ),
         ),
         const SizedBox(height: 16),
