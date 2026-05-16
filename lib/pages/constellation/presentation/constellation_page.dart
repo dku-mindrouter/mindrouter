@@ -886,7 +886,21 @@ class _StarDetailPageState extends State<_StarDetailPage> {
     if (widget.isPreviewMode) {
       setState(() {
         _star = widget.initialStar;
-        _reactionTypes = _previewReactionTypes;
+        _reactionTypes = const <ReactionType>[
+          ..._previewReactionTypes,
+          ReactionType(
+            id: 5,
+            code: 'WARM_COFFEE',
+            labelKo: '커피 보내기',
+            icon: 'coffee',
+          ),
+          ReactionType(
+            id: 6,
+            code: 'LETTER',
+            labelKo: '편지 보내기',
+            icon: 'letter',
+          ),
+        ];
         _isLoading = false;
       });
       return;
@@ -910,7 +924,7 @@ class _StarDetailPageState extends State<_StarDetailPage> {
         _star = resolvedDetail.userId == widget.userId
             ? resolvedDetail
             : _copyStarWithSeen(resolvedDetail);
-        _reactionTypes = reactionTypes;
+        _reactionTypes = _withExtendedReactionTypes(reactionTypes);
         _isLoading = false;
       });
     } catch (error) {
@@ -974,10 +988,43 @@ class _StarDetailPageState extends State<_StarDetailPage> {
       for (final String code in _reactionOrder)
         if (byCode[code] != null) byCode[code]!,
     ];
+    final Set<String> orderedCodes = ordered
+        .map((ReactionType type) => type.code)
+        .toSet();
+    ordered.addAll(
+      _reactionTypes.where(
+        (ReactionType type) => !orderedCodes.contains(type.code),
+      ),
+    );
     if (ordered.isNotEmpty) {
       return ordered;
     }
     return _reactionTypes;
+  }
+
+  List<ReactionType> _withExtendedReactionTypes(List<ReactionType> source) {
+    final Map<String, ReactionType> byCode = <String, ReactionType>{
+      for (final ReactionType type in source) type.code: type,
+    };
+    byCode.putIfAbsent(
+      'WARM_COFFEE',
+      () => const ReactionType(
+        id: 5,
+        code: 'WARM_COFFEE',
+        labelKo: '커피 보내기',
+        icon: 'coffee',
+      ),
+    );
+    byCode.putIfAbsent(
+      'LETTER',
+      () => const ReactionType(
+        id: 6,
+        code: 'LETTER',
+        labelKo: '편지 보내기',
+        icon: 'letter',
+      ),
+    );
+    return byCode.values.toList();
   }
 
   void _close() {
@@ -1481,9 +1528,11 @@ const List<_FilterOption> _filterOptions = <_FilterOption>[
 
 const List<String> _reactionOrder = <String>[
   'WARM_TEA',
+  'WARM_COFFEE',
   'HUG',
   'YOU_DID_WELL',
   'WITH_YOU',
+  'LETTER',
 ];
 
 const List<ReactionType> _previewReactionTypes = <ReactionType>[
@@ -2009,12 +2058,16 @@ IconData _iconForReaction(ReactionType reactionType) {
   switch (reactionType.code) {
     case 'WARM_TEA':
       return Icons.local_cafe_outlined;
+    case 'WARM_COFFEE':
+      return Icons.coffee_outlined;
     case 'HUG':
       return Icons.favorite_border_rounded;
     case 'YOU_DID_WELL':
       return Icons.auto_awesome_rounded;
     case 'WITH_YOU':
       return Icons.nights_stay_outlined;
+    case 'LETTER':
+      return Icons.mail_outline_rounded;
     default:
       return Icons.favorite_outline_rounded;
   }

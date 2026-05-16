@@ -26,9 +26,11 @@ select setval(
 insert into public.reaction_types (id, code, label_ko, icon, is_active)
 values
   (1, 'WARM_TEA', '따뜻한 차', 'tea', true),
+  (5, 'WARM_COFFEE', '커피 보내기', 'coffee', true),
   (2, 'HUG', '안아드려요', 'hug', true),
   (3, 'YOU_DID_WELL', '고생했어요', 'clover', true),
-  (4, 'WITH_YOU', '함께해요', 'stars', true)
+  (4, 'WITH_YOU', '함께해요', 'stars', true),
+  (6, 'LETTER', '편지 보내기', 'letter', true)
 on conflict (id) do update
 set
   code = excluded.code,
