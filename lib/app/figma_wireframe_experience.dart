@@ -292,6 +292,7 @@ class _MindRouterShell extends StatefulWidget {
 
 class _MindRouterShellState extends State<_MindRouterShell> {
   int _currentIndex = 0;
+  int _profileRefreshTick = 0;
   _ProfileSubPage _profileSubPage = _ProfileSubPage.profile;
 
   @override
@@ -308,6 +309,8 @@ class _MindRouterShellState extends State<_MindRouterShell> {
         userId: widget.userId,
         onOpenSettings: _openSettings,
         onOpenMission: _openTodayMission,
+        isPreviewMode: widget.previewMessage != null,
+        refreshTick: _profileRefreshTick,
       ),
     };
 
@@ -375,6 +378,9 @@ class _MindRouterShellState extends State<_MindRouterShell> {
             onDestinationSelected: (int index) {
               setState(() {
                 _currentIndex = index;
+                if (index == 3) {
+                  _profileRefreshTick += 1;
+                }
                 if (index != 3) {
                   _profileSubPage = _ProfileSubPage.profile;
                 }

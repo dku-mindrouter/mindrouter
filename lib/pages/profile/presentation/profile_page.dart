@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../constellation/data/constellation_repository.dart';
+import '../../constellation/data/supabase_constellation_data_source.dart';
+import '../../constellation/domain/star.dart';
+import '../../constellation/domain/today_status.dart';
 import '../../../shared/widgets/app_panel_card.dart';
 
-class ProfilePage extends StatelessWidget {
+class ProfilePage extends StatefulWidget {
   const ProfilePage({
     super.key,
     required this.nickname,
@@ -11,6 +16,8 @@ class ProfilePage extends StatelessWidget {
     required this.userId,
     required this.onOpenSettings,
     required this.onOpenMission,
+    required this.isPreviewMode,
+    required this.refreshTick,
   });
 
   final String nickname;
@@ -19,6 +26,32 @@ class ProfilePage extends StatelessWidget {
   final String userId;
   final VoidCallback onOpenSettings;
   final VoidCallback onOpenMission;
+  final bool isPreviewMode;
+  final int refreshTick;
+
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  late Future<_TodayStarPreview> _todayStarFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _todayStarFuture = _loadTodayStarPreview();
+  }
+
+  @override
+  void didUpdateWidget(covariant ProfilePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshTick != widget.refreshTick ||
+        oldWidget.isPreviewMode != widget.isPreviewMode) {
+      setState(() {
+        _todayStarFuture = _loadTodayStarPreview();
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +82,7 @@ class ProfilePage extends StatelessWidget {
             _ProfileIconButton(
               icon: Icons.settings_outlined,
               label: '설정 열기',
-              onPressed: onOpenSettings,
+              onPressed: widget.onOpenSettings,
             ),
           ],
         ),
@@ -66,104 +99,17 @@ class ProfilePage extends StatelessWidget {
           backgroundColor: const Color(0xCC1C1E34),
           borderColor: Colors.white.withValues(alpha: 0.06),
           borderRadius: 28,
-          child: Row(
-            children: <Widget>[
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: <Color>[
-                      const Color(0xFF7656B8).withValues(alpha: 0.92),
-                      const Color(0xFF7656B8).withValues(alpha: 0.16),
-                    ],
-                  ),
-                  boxShadow: const <BoxShadow>[
-                    BoxShadow(
-                      color: Color(0x667656B8),
-                      blurRadius: 34,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: const Center(
-                  child: Text(
-                    '#지침',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 18),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    const Row(
-                      children: <Widget>[
-                        Text(
-                          '오늘의 별',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 16,
-                          ),
-                        ),
-                        SizedBox(width: 6),
-                        Icon(
-                          Icons.auto_awesome,
-                          color: Color(0xFFD8B4FE),
-                          size: 16,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '밤 11:28 · 혼자 시간',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.52),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0x1AF59E0B),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: const Color(0x33F59E0B)),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          Icon(
-                            Icons.warning_amber_rounded,
-                            color: Color(0xFFFBBF24),
-                            size: 14,
-                          ),
-                          SizedBox(width: 6),
-                          Text(
-                            '번아웃 주의',
-                            style: TextStyle(
-                              color: Color(0xFFFBBF24),
-                              fontWeight: FontWeight.w700,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          child: FutureBuilder<_TodayStarPreview>(
+            future: _todayStarFuture,
+            builder:
+                (
+                  BuildContext context,
+                  AsyncSnapshot<_TodayStarPreview> snapshot,
+                ) {
+                  final _TodayStarPreview preview =
+                      snapshot.data ?? _TodayStarPreview.loading();
+                  return _TodayStarCardContent(preview: preview);
+                },
           ),
         ),
         const SizedBox(height: 16),
@@ -171,7 +117,7 @@ class ProfilePage extends StatelessWidget {
           button: true,
           label: '오늘의 맞춤 미션, 햇살과 함께 10분 걷기',
           child: InkWell(
-            onTap: onOpenMission,
+            onTap: widget.onOpenMission,
             borderRadius: BorderRadius.circular(28),
             child: AppPanelCard(
               padding: const EdgeInsets.all(20),
@@ -255,11 +201,245 @@ class ProfilePage extends StatelessWidget {
         const SizedBox(height: 16),
         const _NextBadgeCard(),
         const SizedBox(height: 16),
-        _ProfileField(label: 'nickname', value: nickname),
-        _ProfileField(label: 'timezone', value: timezone),
-        _ProfileField(label: 'next route', value: nextRoute),
-        _ProfileField(label: 'user id', value: userId),
+        _ProfileField(label: 'nickname', value: widget.nickname),
+        _ProfileField(label: 'timezone', value: widget.timezone),
+        _ProfileField(label: 'next route', value: widget.nextRoute),
+        _ProfileField(label: 'user id', value: widget.userId),
       ],
+    );
+  }
+
+  Future<_TodayStarPreview> _loadTodayStarPreview() async {
+    if (widget.isPreviewMode) {
+      return _TodayStarPreview.previewMock();
+    }
+
+    try {
+      final SupabaseClient client = Supabase.instance.client;
+      final ConstellationRepository repository = ConstellationRepository(
+        dataSource: SupabaseConstellationDataSource(client: client),
+      );
+
+      final TodayStatus status = await repository.fetchTodayStatus();
+      if (!status.hasStarToday || status.todayStarId == null) {
+        return _TodayStarPreview.empty();
+      }
+
+      final Star star = await repository.fetchStarById(status.todayStarId!);
+      final String tagLabel = star.tagNames.isNotEmpty
+          ? '#${star.tagNames.first}'
+          : '#오늘의별';
+
+      return _TodayStarPreview(
+        badgeLabel: tagLabel,
+        metaLine:
+            '${_bucketLabel(star.timeBucket)} · ${_timeText(star.createdAt)}',
+        message: star.content,
+        stateLabel: status.isStarExpiredToday ? '보관됨' : '등록 완료',
+        stateColor: status.isStarExpiredToday
+            ? const Color(0xFFF59E0B)
+            : const Color(0xFF22C55E),
+      );
+    } catch (_) {
+      return _TodayStarPreview.error();
+    }
+  }
+
+  String _bucketLabel(String bucket) {
+    switch (bucket) {
+      case 'dawn':
+        return '새벽';
+      case 'morning':
+        return '아침';
+      case 'day':
+        return '낮';
+      case 'evening':
+        return '저녁';
+      case 'night':
+        return '밤';
+      default:
+        return '오늘';
+    }
+  }
+
+  String _timeText(DateTime dateTime) {
+    final DateTime local = dateTime.toLocal();
+    final int hour = local.hour;
+    final int minute = local.minute;
+    final bool isAm = hour < 12;
+    final int normalizedHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+    final String minuteText = minute.toString().padLeft(2, '0');
+    return '${isAm ? '오전' : '오후'} $normalizedHour:$minuteText';
+  }
+}
+
+class _TodayStarCardContent extends StatelessWidget {
+  const _TodayStarCardContent({required this.preview});
+
+  final _TodayStarPreview preview;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Container(
+          width: 80,
+          height: 80,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: <Color>[
+                const Color(0xFF7656B8).withValues(alpha: 0.92),
+                const Color(0xFF7656B8).withValues(alpha: 0.16),
+              ],
+            ),
+            boxShadow: const <BoxShadow>[
+              BoxShadow(
+                color: Color(0x667656B8),
+                blurRadius: 34,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: Center(
+            child: Text(
+              preview.badgeLabel,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 18),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Row(
+                children: <Widget>[
+                  Text(
+                    '오늘의 별',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                    ),
+                  ),
+                  SizedBox(width: 6),
+                  Icon(Icons.auto_awesome, color: Color(0xFFD8B4FE), size: 16),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                preview.metaLine,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.52),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                preview.message,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.84),
+                  fontSize: 13,
+                  height: 1.35,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: preview.stateColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: preview.stateColor.withValues(alpha: 0.32),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Icon(Icons.circle, color: preview.stateColor, size: 10),
+                    const SizedBox(width: 6),
+                    Text(
+                      preview.stateLabel,
+                      style: TextStyle(
+                        color: preview.stateColor,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TodayStarPreview {
+  const _TodayStarPreview({
+    required this.badgeLabel,
+    required this.metaLine,
+    required this.message,
+    required this.stateLabel,
+    required this.stateColor,
+  });
+
+  final String badgeLabel;
+  final String metaLine;
+  final String message;
+  final String stateLabel;
+  final Color stateColor;
+
+  factory _TodayStarPreview.loading() {
+    return const _TodayStarPreview(
+      badgeLabel: '#불러오는중',
+      metaLine: '오늘 · 동기화 중',
+      message: '내가 등록한 별 내용을 불러오고 있어요.',
+      stateLabel: '동기화 중',
+      stateColor: Color(0xFF818CF8),
+    );
+  }
+
+  factory _TodayStarPreview.previewMock() {
+    return const _TodayStarPreview(
+      badgeLabel: '#평온',
+      metaLine: '밤 · 오후 11:28',
+      message: '지금은 preview 모드라서 샘플 메시지를 보여주고 있어요.',
+      stateLabel: '프리뷰 모드',
+      stateColor: Color(0xFF38BDF8),
+    );
+  }
+
+  factory _TodayStarPreview.empty() {
+    return const _TodayStarPreview(
+      badgeLabel: '#오늘의별',
+      metaLine: '오늘 · 아직 미등록',
+      message: '오늘 작성한 별이 아직 없어요. 감정을 기록하고 내 별을 띄워보세요.',
+      stateLabel: '작성 전',
+      stateColor: Color(0xFFF59E0B),
+    );
+  }
+
+  factory _TodayStarPreview.error() {
+    return const _TodayStarPreview(
+      badgeLabel: '#연결오류',
+      metaLine: '오늘 · 불러오기 실패',
+      message: '내 별 내용을 불러오지 못했어요. 잠시 후 다시 확인해주세요.',
+      stateLabel: '오류',
+      stateColor: Color(0xFFFB7185),
     );
   }
 }
