@@ -55,16 +55,17 @@ pages/
 
 비교 기준은 `origin/eomtaemin` 브랜치입니다.
 
-`origin/eomtaemin` 대비 현재 브랜치의 주요 변경 파일은 아래 6개입니다.
+`origin/eomtaemin` 대비 현재 브랜치의 주요 변경 파일은 아래 7개입니다.
 
 - `.gitignore`: 로컬 산출물, Supabase 임시 폴더, 분석 결과물 등이 커밋되지 않도록 정리
 - `README.md`: eomtaemin 대비 변경사항과 백엔드 handoff 메모 갱신
 - `lib/app/figma_wireframe_experience.dart`: `ConstellationPage`에 현재 `userId`, `isPreviewMode` 전달
 - `lib/pages/emotion/presentation/emotion_home_page.dart`: 서버 emotion tag 기준 UI 매핑, 로딩/작성 완료/에러 상태 UX 보강
-- `lib/pages/constellation/presentation/constellation_page.dart`: 별자리 feed/detail/reaction 실제 연결 및 사진 참고 상세 UI 적용
+- `lib/pages/constellation/presentation/constellation_page.dart`: 별자리 feed/detail/reaction 실제 연결, 사진 참고 상세 UI 적용, QA 피드백 반영
+- `test/pages/constellation/presentation/constellation_page_test.dart`: preview 별자리 요약 태그 및 상세 다중 태그 표시 검증
 - `tool/verify_backend_contract.dart`: Supabase RPC 계약 실연동 검증 도구 추가
 
-전체 diff 규모는 현재 기준 6개 파일, 약 2,419줄 추가 / 276줄 삭제입니다. 핵심은 `eomtaemin`의 Emotion 저장 흐름 위에 Constellation/Reaction 실연동과 백엔드 검증 도구를 얹은 것입니다.
+핵심은 `eomtaemin`의 Emotion 저장 흐름 위에 Constellation/Reaction 실연동, 백엔드 검증 도구, 그리고 Android QA 후속 UI/UX 보강을 얹은 것입니다.
 
 ### 1. Emotion 화면 실제 별 생성 흐름
 
@@ -92,10 +93,11 @@ pages/
 - 필터 칩은 `FeedFilter` 도메인 값과 연결되어 `all/dawn/morning/day/evening/night` 필터를 서버에 전달합니다.
 - 목록은 pull-to-refresh와 로딩/빈 상태/에러 상태를 처리합니다.
 - 별 위치, 크기, 색상은 현재 프론트에서 시각화합니다.
-  - 색상은 `time_bucket` 기준입니다.
+  - 색상은 감정 선택 화면에서 쓰는 감정 태그 팔레트를 우선 사용합니다.
+  - 태그가 여러 개인 별은 해당 태그 중 하나를 안정적으로 골라 색을 정합니다.
   - 크기는 `relation_score`, `reaction_count`를 반영합니다.
 - 내가 띄운 별은 `user_id == 현재 사용자 id` 기준으로 판단하며, `내 별` 배지와 분홍색 링으로 별도 표시합니다.
-- 여러 감정 태그가 있는 별은 맵에서는 `#첫태그 +N` 형태로 요약하고, 상세 화면에서는 태그 칩으로 전체 표시합니다.
+- 여러 감정 태그가 있는 별은 맵에서는 `#첫태그 +N` 형태로 요약하고, 상세 화면에서는 오브와 태그 칩 영역에서 전체 태그를 확인할 수 있습니다.
 - 서버 응답에서 `tag_names`가 비어 있을 경우를 대비해, 프론트가 `emotion_tags`를 조회해 `tag_ids`를 태그명으로 보강합니다.
 
 ### 4. 별 상세 및 정해진 리액션 전송
@@ -111,7 +113,16 @@ pages/
 - 리액션 전송은 `send_reaction` RPC로 연결되어 있고, 성공 후 reaction count를 화면에 반영합니다.
 - 내 별, 이미 리액션한 별, 만료/차단/비활성 별 등은 `is_reactable` 기준으로 버튼을 비활성화합니다.
 
-### 5. 앱 셸 연결 변경
+### 5. Android QA 반영 사항
+
+- 별자리 맵의 각 별은 최소 터치 영역을 넓혀 Android에서 손가락으로 누르기 쉽게 조정했습니다.
+- 읽음 상태는 더 이상 별도 `읽음` 배지에만 의존하지 않고, 감정 태그 라벨을 회색 톤으로 바꿔 자연스럽게 표현합니다.
+- 별자리 노드 배치는 고정 위치만 쓰지 않고, 별 크기와 태그 표시 높이를 고려해 겹침을 줄이는 방식으로 재배치합니다.
+- 피드에서는 감정 태그를 모두 나열하지 않고 `#대표태그 +N`으로 요약해 밀도를 낮췄습니다.
+- 상세 화면에서는 감정 태그가 3개인 경우 `+1`로 줄이지 않고 3개를 모두 보여줍니다.
+- preview 별자리 데이터와 화면 테스트를 통해 다중 태그 표시를 검증합니다.
+
+### 6. 앱 셸 연결 변경
 
 - [lib/app/figma_wireframe_experience.dart](/Users/yuchan/Desktop/git/mindrouter/lib/app/figma_wireframe_experience.dart)에서 `ConstellationPage`에 현재 `userId`와 `isPreviewMode`를 전달합니다.
 - Supabase 설정이 없거나 preview mode일 때는 샘플 별자리와 샘플 리액션 타입으로 화면 확인이 가능합니다.
@@ -124,6 +135,7 @@ pages/
 - `get_constellation_feed`와 `get_star_detail`은 `tag_ids`뿐 아니라 `tag_names text[]`도 내려주는 것이 문서 기준 계약입니다.
 - 현재 프론트에는 `tag_names` 누락 시 `emotion_tags`로 보강하는 fallback을 넣어두었지만, 이는 방어 로직입니다.
 - 백엔드에서 `tag_names`를 항상 내려주면 추가 쿼리를 줄이고 UI 표시가 더 안정적입니다.
+- 여러 감정 태그를 상세 오브와 하단 칩에 모두 보여주기 때문에, `tag_names` 배열의 순서가 일관되면 프론트 표현도 더 안정적입니다.
 - feed/detail 응답에는 최소한 아래 필드가 필요합니다.
   - `star_id`
   - `user_id`
@@ -170,6 +182,7 @@ pages/
 - 실제 feed에서 `tag_names`가 비어 보이는 케이스가 있었습니다. 프론트 fallback은 들어갔지만 백엔드 RPC 집계 확인이 필요합니다.
 - `create_star`는 감정 태그 1~3개와 80자 이하 본문 기준으로 프론트에서 호출합니다. 서버에서도 같은 제약을 검증해야 합니다.
 - `get_today_status`의 `has_star_today`, `reaction_remaining_count`, `reaction_daily_limit`은 UI 상태 판단에 직접 사용됩니다.
+- 읽음 표시는 `star_views` upsert 성공과 `is_seen` 반영이 맞물려야 자연스럽게 동작합니다. 프론트는 optimistic update를 넣어두었지만, feed/detail 응답의 `is_seen` 값도 일관되게 유지되는 편이 좋습니다.
 - service role key나 Supabase access token은 README, 코드, 커밋에 포함하지 않습니다.
 
 ## 문서 우선순위
@@ -226,6 +239,8 @@ flutter test
 - Constellation
   - `get_today_status`, `get_constellation_feed`, `get_star_detail`, `star_views` 읽음 처리 연결
   - 상세 화면에서 `reaction_types` 조회 후 `send_reaction` 호출
+  - 피드에서는 `#대표태그 +N` 요약, 상세에서는 다중 감정 태그 전체 표시
+  - 감정 태그 팔레트 기반 별 색상 적용, 읽음 상태 회색 태그 처리, 겹침 감소 배치 적용
   - preview mode에서는 샘플 star 데이터 사용
 - Comfort
   - 받은 위로 목록 시안 포팅

@@ -133,38 +133,62 @@ class _ConstellationPageState extends State<ConstellationPage> {
     }
 
     return _ConstellationPanel(
-      child: Stack(
-        children: <Widget>[
-          const Positioned.fill(
-            child: CustomPaint(painter: _ConstellationLinePainter()),
-          ),
-          ...List<Widget>.generate(_stars.length, (int index) {
-            final Star star = _stars[index];
-            return Align(
-              alignment: _alignmentForIndex(index),
-              child: _FeedStarNode(
-                star: star,
-                color: _colorForStar(star),
-                size: _sizeForStar(star),
-                isMine: star.userId == widget.userId,
-                onTap: () => _openStarDetail(star),
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final Size panelSize = Size(
+            constraints.maxWidth,
+            constraints.maxHeight,
+          );
+          final Map<String, Rect> placements = _buildStarPlacements(
+            panelSize: panelSize,
+            stars: _stars,
+            userId: widget.userId,
+          );
+
+          return Stack(
+            children: <Widget>[
+              const Positioned.fill(
+                child: CustomPaint(painter: _ConstellationLinePainter()),
               ),
-            );
-          }),
-          if (_isRefreshing)
-            const Positioned(
-              right: 18,
-              top: 18,
-              child: SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Color(0xFFC7D2FE),
+              ..._stars.map((Star star) {
+                final Rect placement =
+                    placements[star.starId] ??
+                    _fallbackStarRect(
+                      star: star,
+                      panelSize: panelSize,
+                      userId: widget.userId,
+                      index: _stars.indexOf(star),
+                    );
+                return Positioned(
+                  left: placement.left,
+                  top: placement.top,
+                  width: placement.width,
+                  height: placement.height,
+                  child: _FeedStarNode(
+                    star: star,
+                    color: _colorForStar(star),
+                    size: _sizeForStar(star),
+                    isMine: star.userId == widget.userId,
+                    onTap: () => _openStarDetail(star),
+                  ),
+                );
+              }),
+              if (_isRefreshing)
+                const Positioned(
+                  right: 18,
+                  top: 18,
+                  child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Color(0xFFC7D2FE),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
@@ -226,6 +250,19 @@ class _ConstellationPageState extends State<ConstellationPage> {
   }
 
   Future<void> _openStarDetail(Star star) async {
+    if (!star.isSeen && star.userId != widget.userId) {
+      setState(() {
+        _stars = _stars
+            .map((Star feedStar) {
+              if (feedStar.starId == star.starId) {
+                return _copyStarWithSeen(feedStar);
+              }
+              return feedStar;
+            })
+            .toList(growable: false);
+      });
+    }
+
     final Star? updatedStar = await Navigator.of(context).push<Star>(
       MaterialPageRoute<Star>(
         builder: (BuildContext context) => _StarDetailPage(
@@ -242,7 +279,9 @@ class _ConstellationPageState extends State<ConstellationPage> {
       _stars = _stars
           .map((Star feedStar) {
             if (feedStar.starId == updatedStar.starId) {
-              return updatedStar;
+              return updatedStar.userId == widget.userId
+                  ? updatedStar
+                  : _copyStarWithSeen(updatedStar);
             }
             return feedStar;
           })
@@ -520,10 +559,12 @@ class _FeedStarNode extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool isSeen = star.isSeen;
     final Color markerColor = isMine ? const Color(0xFFF9A8D4) : color;
+    final List<String> semanticsTagLabels = _feedTagLabels(star);
+    final String summaryLabel = _feedSummaryLabel(star);
 
     return Semantics(
       button: true,
-      label: '${_compactStarLabel(star)} 별 상세 열기',
+      label: '${semanticsTagLabels.join(', ')} 별 상세 열기',
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
@@ -534,7 +575,7 @@ class _FeedStarNode extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                if (isMine || isSeen)
+                if (isMine)
                   Container(
                     margin: const EdgeInsets.only(bottom: 8),
                     padding: const EdgeInsets.symmetric(
@@ -553,11 +594,9 @@ class _FeedStarNode extends StatelessWidget {
                       ),
                     ),
                     child: Text(
-                      isMine ? '내 별' : '읽음',
+                      '내 별',
                       style: TextStyle(
-                        color: isMine
-                            ? const Color(0xFFFFD7EA)
-                            : Colors.white70,
+                        color: const Color(0xFFFFD7EA),
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
                       ),
@@ -601,21 +640,71 @@ class _FeedStarNode extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 SizedBox(
-                  width: 86,
-                  child: Text(
-                    _compactStarLabel(star),
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.62),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
+                  width: 98,
+                  child: Center(
+                    child: _FeedTagPill(
+                      label: summaryLabel,
+                      color: color,
+                      isSeen: isSeen,
+                      isMine: isMine,
                     ),
                   ),
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FeedTagPill extends StatelessWidget {
+  const _FeedTagPill({
+    required this.label,
+    required this.color,
+    required this.isSeen,
+    required this.isMine,
+  });
+
+  final String label;
+  final Color color;
+  final bool isSeen;
+  final bool isMine;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color resolvedColor = isSeen
+        ? const Color(0xFF666B82)
+        : isMine
+        ? const Color(0xFFE0A4C6)
+        : color;
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 94),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: resolvedColor.withValues(alpha: isSeen ? 0.12 : 0.18),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: resolvedColor.withValues(alpha: isSeen ? 0.2 : 0.34),
+          ),
+        ),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: isSeen
+                ? const Color(0xFF8A8EA4)
+                : isMine
+                ? const Color(0xFFFFD7EA)
+                : Colors.white.withValues(alpha: 0.84),
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            height: 1.1,
           ),
         ),
       ),
@@ -717,7 +806,8 @@ class _StarDetailPageState extends State<_StarDetailPage> {
         const SizedBox(height: 18),
         Center(
           child: _DetailEmotionOrb(
-            label: _detailStarLabel(_star),
+            tagLabels: _detailOrbTagLabels(_star),
+            fallbackLabel: _bucketLabel(_star.timeBucket),
             color: _colorForStar(_star),
             isMine: isMine,
           ),
@@ -817,7 +907,9 @@ class _StarDetailPageState extends State<_StarDetailPage> {
         return;
       }
       setState(() {
-        _star = resolvedDetail;
+        _star = resolvedDetail.userId == widget.userId
+            ? resolvedDetail
+            : _copyStarWithSeen(resolvedDetail);
         _reactionTypes = reactionTypes;
         _isLoading = false;
       });
@@ -1013,17 +1105,33 @@ class _DetailErrorState extends StatelessWidget {
 
 class _DetailEmotionOrb extends StatelessWidget {
   const _DetailEmotionOrb({
-    required this.label,
+    required this.tagLabels,
+    required this.fallbackLabel,
     required this.color,
     required this.isMine,
   });
 
-  final String label;
+  final List<String> tagLabels;
+  final String fallbackLabel;
   final Color color;
   final bool isMine;
 
   @override
   Widget build(BuildContext context) {
+    final List<String> lines = tagLabels.isEmpty
+        ? <String>[fallbackLabel]
+        : tagLabels.take(3).toList(growable: false);
+    final double fontSize = switch (lines.length) {
+      1 => 21,
+      2 => 18,
+      _ => 15,
+    };
+    final double horizontalPadding = switch (lines.length) {
+      1 => 18,
+      2 => 18,
+      _ => 20,
+    };
+
     return Container(
       width: 154,
       height: 154,
@@ -1049,23 +1157,42 @@ class _DetailEmotionOrb extends StatelessWidget {
       ),
       child: Center(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 21,
-              height: 1.2,
-              fontWeight: FontWeight.w900,
-            ),
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              for (int index = 0; index < lines.length; index++) ...<Widget>[
+                Text(
+                  lines[index],
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withValues(
+                      alpha: index == 0 ? 1 : 0.88,
+                    ),
+                    fontSize: fontSize,
+                    height: 1.15,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                if (index != lines.length - 1) const SizedBox(height: 3),
+              ],
+            ],
           ),
         ),
       ),
     );
   }
+}
+
+List<String> _detailOrbTagLabels(Star star) {
+  final List<String> tags = _starTagLabels(star);
+  if (tags.length <= 3) {
+    return tags;
+  }
+  return <String>[tags[0], tags[1], '${tags[2]} +${tags.length - 3}'];
 }
 
 class _DetailPill extends StatelessWidget {
@@ -1378,6 +1505,58 @@ const List<Alignment> _starAlignments = <Alignment>[
 
 Map<int, String>? _emotionTagNameByIdCache;
 
+const Map<String, String> _feedTagDisplayOverrides = <String, String>{
+  '위로받고 싶음': '#위로',
+};
+
+const Map<String, Color> _feedTagColors = <String, Color>{
+  '무기력': Color(0xFFB68355),
+  '잔잔함': Color(0xFF6FB1A9),
+  '안도감': Color(0xFF6FB1A9),
+  '공허함': Color(0xFF6F55B5),
+  '이유 없이': Color(0xFF6F55B5),
+  '우울함': Color(0xFF5D72C6),
+  '외로움': Color(0xFF5D72C6),
+  '가라앉음': Color(0xFF5D72C6),
+  '지침': Color(0xFFC1A34A),
+  '번아웃': Color(0xFFC1A34A),
+  '위로받고 싶음': Color(0xFF555A8A),
+  '위로': Color(0xFF555A8A),
+  '불안': Color(0xFF6842A8),
+  '조마조마': Color(0xFF6842A8),
+  '답답함': Color(0xFFAF5A71),
+};
+
+const double _feedNodeMinWidth = 108;
+const double _feedNodeHorizontalPadding = 10;
+const double _feedNodeTopPadding = 8;
+const double _feedNodeBottomPadding = 8;
+const double _feedNodeLabelSpacing = 8;
+const double _feedNodeTagRowHeight = 24;
+const double _feedNodeCollisionGap = 10;
+
+const List<Offset> _placementSearchOffsets = <Offset>[
+  Offset(0, 0),
+  Offset(18, 0),
+  Offset(-18, 0),
+  Offset(0, 18),
+  Offset(0, -18),
+  Offset(30, 12),
+  Offset(-30, 12),
+  Offset(30, -12),
+  Offset(-30, -12),
+  Offset(0, 32),
+  Offset(0, -32),
+  Offset(44, 0),
+  Offset(-44, 0),
+  Offset(56, 20),
+  Offset(-56, 20),
+  Offset(56, -20),
+  Offset(-56, -20),
+  Offset(0, 48),
+  Offset(0, -48),
+];
+
 final List<Star> _previewStars = <Star>[
   Star(
     starId: 'preview-mine',
@@ -1401,8 +1580,8 @@ final List<Star> _previewStars = <Star>[
     starId: 'preview-similar',
     userId: 'preview-other-1',
     content: '마음이 자꾸 조용해져서 작은 위로가 필요했어요.',
-    tagIds: const <int>[4, 10],
-    tagNames: const <String>['외로움', '위로받고 싶음'],
+    tagIds: const <int>[4, 10, 6],
+    tagNames: const <String>['외로움', '위로받고 싶음', '불안'],
     timeBucket: 'night',
     reactionCount: 2,
     createdAt: DateTime(2026, 4, 11, 22, 4),
@@ -1457,7 +1636,170 @@ Alignment _alignmentForIndex(int index) {
   return _starAlignments[index % _starAlignments.length];
 }
 
+Map<String, Rect> _buildStarPlacements({
+  required Size panelSize,
+  required List<Star> stars,
+  required String userId,
+}) {
+  final List<Star> placementOrder = List<Star>.from(stars)
+    ..sort((Star a, Star b) {
+      final Size aSize = _feedNodeSize(
+        star: a,
+        size: _sizeForStar(a),
+        isMine: a.userId == userId,
+      );
+      final Size bSize = _feedNodeSize(
+        star: b,
+        size: _sizeForStar(b),
+        isMine: b.userId == userId,
+      );
+      return (bSize.width * bSize.height).compareTo(aSize.width * aSize.height);
+    });
+
+  final Map<String, Rect> placements = <String, Rect>{};
+  for (final Star star in placementOrder) {
+    final int index = stars.indexOf(star);
+    placements[star.starId] = _resolveStarRect(
+      star: star,
+      panelSize: panelSize,
+      userId: userId,
+      index: index,
+      occupied: placements.values.toList(growable: false),
+    );
+  }
+  return placements;
+}
+
+Rect _resolveStarRect({
+  required Star star,
+  required Size panelSize,
+  required String userId,
+  required int index,
+  required List<Rect> occupied,
+}) {
+  final Size nodeSize = _feedNodeSize(
+    star: star,
+    size: _sizeForStar(star),
+    isMine: star.userId == userId,
+  );
+  final Alignment anchor = _alignmentForIndex(index);
+  final Offset preferredCenter = Offset(
+    ((anchor.x + 1) / 2) * panelSize.width,
+    ((anchor.y + 1) / 2) * panelSize.height,
+  );
+
+  Rect bestRect = _clampedStarRect(
+    center: preferredCenter,
+    nodeSize: nodeSize,
+    panelSize: panelSize,
+  );
+  double bestScore = double.infinity;
+
+  for (final Offset searchOffset in _placementSearchOffsets) {
+    final Rect candidate = _clampedStarRect(
+      center: preferredCenter + searchOffset,
+      nodeSize: nodeSize,
+      panelSize: panelSize,
+    );
+    final double overlapScore = _overlapScore(candidate, occupied);
+    final double distanceScore = searchOffset.distance;
+    final double score = overlapScore * 100000 + distanceScore;
+    if (score < bestScore) {
+      bestScore = score;
+      bestRect = candidate;
+    }
+    if (overlapScore == 0) {
+      break;
+    }
+  }
+
+  return bestRect;
+}
+
+Rect _fallbackStarRect({
+  required Star star,
+  required Size panelSize,
+  required String userId,
+  required int index,
+}) {
+  final Size nodeSize = _feedNodeSize(
+    star: star,
+    size: _sizeForStar(star),
+    isMine: star.userId == userId,
+  );
+  final Alignment anchor = _alignmentForIndex(index);
+  final Offset center = Offset(
+    ((anchor.x + 1) / 2) * panelSize.width,
+    ((anchor.y + 1) / 2) * panelSize.height,
+  );
+  return _clampedStarRect(
+    center: center,
+    nodeSize: nodeSize,
+    panelSize: panelSize,
+  );
+}
+
+Rect _clampedStarRect({
+  required Offset center,
+  required Size nodeSize,
+  required Size panelSize,
+}) {
+  final double halfWidth = nodeSize.width / 2;
+  final double halfHeight = nodeSize.height / 2;
+  final double left = (center.dx - halfWidth).clamp(
+    12,
+    math.max(12, panelSize.width - nodeSize.width - 12),
+  );
+  final double top = (center.dy - halfHeight).clamp(
+    12,
+    math.max(12, panelSize.height - nodeSize.height - 12),
+  );
+  return Rect.fromLTWH(left, top, nodeSize.width, nodeSize.height);
+}
+
+double _overlapScore(Rect candidate, List<Rect> occupied) {
+  double total = 0;
+  for (final Rect rect in occupied) {
+    final Rect expanded = rect.inflate(_feedNodeCollisionGap);
+    final Rect intersection = candidate.intersect(expanded);
+    if (!intersection.isEmpty) {
+      total += intersection.width * intersection.height;
+    }
+  }
+  return total;
+}
+
+Size _feedNodeSize({
+  required Star star,
+  required double size,
+  required bool isMine,
+}) {
+  final List<String> tagLabels = _feedTagLabels(star);
+  final int rowCount = math.max(1, tagLabels.length);
+  final double orbSize = isMine ? size + 12 : size;
+  final double badgeHeight = isMine ? 30 : 0;
+  final double width = math.max(_feedNodeMinWidth, orbSize + 16);
+  final double height =
+      _feedNodeTopPadding +
+      badgeHeight +
+      orbSize +
+      _feedNodeLabelSpacing +
+      (rowCount * _feedNodeTagRowHeight) +
+      _feedNodeBottomPadding;
+  return Size(width + (_feedNodeHorizontalPadding * 2), height);
+}
+
 Color _colorForStar(Star star) {
+  final List<String> feedTagLabels = _feedTagLabels(star);
+  final List<Color> tagColors = feedTagLabels
+      .map((String label) => _colorForTagLabel(label))
+      .whereType<Color>()
+      .toList(growable: false);
+
+  if (tagColors.isNotEmpty) {
+    return tagColors[_stableIndexForSeed(star.starId, tagColors.length)];
+  }
+
   switch (star.timeBucket) {
     case 'dawn':
       return const Color(0xFFA78BFA);
@@ -1480,8 +1822,19 @@ double _sizeForStar(Star star) {
   return 14 + scoreSize + reactionSize;
 }
 
-String _compactStarLabel(Star star) {
-  final List<String> tags = _starTagLabels(star);
+List<String> _starTagLabels(Star star) {
+  if (star.tagNames.isNotEmpty) {
+    return star.tagNames.map((String tagName) => '#$tagName').toList();
+  }
+  return star.tagIds.map((int tagId) => 'tag $tagId').toList();
+}
+
+List<String> _feedTagLabels(Star star) {
+  return _starTagLabels(star).map(_feedDisplayTagLabel).toList(growable: false);
+}
+
+String _feedSummaryLabel(Star star) {
+  final List<String> tags = _feedTagLabels(star);
   if (tags.isEmpty) {
     return _bucketLabel(star.timeBucket);
   }
@@ -1491,25 +1844,32 @@ String _compactStarLabel(Star star) {
   return '${tags.first} +${tags.length - 1}';
 }
 
-String _detailStarLabel(Star star) {
-  final List<String> tags = _starTagLabels(star);
-  if (tags.isEmpty) {
-    return _bucketLabel(star.timeBucket);
+String _feedDisplayTagLabel(String label) {
+  final String normalized = _normalizeEmotionLabel(label);
+  final String? mapped = _feedTagDisplayOverrides[normalized];
+  if (mapped != null) {
+    return mapped;
   }
-  if (tags.length == 1) {
-    return tags.first;
-  }
-  if (tags.length == 2) {
-    return '${tags.first}\n${tags[1]}';
-  }
-  return '${tags.first}\n${tags[1]} +${tags.length - 2}';
+  return label;
 }
 
-List<String> _starTagLabels(Star star) {
-  if (star.tagNames.isNotEmpty) {
-    return star.tagNames.map((String tagName) => '#$tagName').toList();
+String _normalizeEmotionLabel(String label) {
+  return label.replaceAll('#', '').trim().toLowerCase();
+}
+
+Color? _colorForTagLabel(String label) {
+  return _feedTagColors[_normalizeEmotionLabel(label)];
+}
+
+int _stableIndexForSeed(String seed, int length) {
+  if (length <= 1) {
+    return 0;
   }
-  return star.tagIds.map((int tagId) => 'tag $tagId').toList();
+  final int total = seed.codeUnits.fold<int>(
+    0,
+    (int sum, int unit) => sum + unit,
+  );
+  return total % length;
 }
 
 Future<List<Star>> _withResolvedTagNames(List<Star> stars) async {
@@ -1674,6 +2034,27 @@ Star _copyStarWithReactionCount(Star star, int reactionCount) {
     isDeleted: star.isDeleted,
     isExpired: star.isExpired,
     isReactable: false,
+    diversityKey: star.diversityKey,
+  );
+}
+
+Star _copyStarWithSeen(Star star) {
+  return Star(
+    starId: star.starId,
+    userId: star.userId,
+    content: star.content,
+    tagIds: star.tagIds,
+    tagNames: star.tagNames,
+    timeBucket: star.timeBucket,
+    reactionCount: star.reactionCount,
+    createdAt: star.createdAt,
+    expiresAt: star.expiresAt,
+    relationScore: star.relationScore,
+    isSeen: true,
+    visibilityStatus: star.visibilityStatus,
+    isDeleted: star.isDeleted,
+    isExpired: star.isExpired,
+    isReactable: star.isReactable,
     diversityKey: star.diversityKey,
   );
 }
