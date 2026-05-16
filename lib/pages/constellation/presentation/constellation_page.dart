@@ -521,85 +521,103 @@ class _FeedStarNode extends StatelessWidget {
     final bool isSeen = star.isSeen;
     final Color markerColor = isMine ? const Color(0xFFF9A8D4) : color;
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          if (isMine || isSeen)
-            Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: isMine
-                    ? const Color(0xFF3B1F3C).withValues(alpha: 0.9)
-                    : Colors.black.withValues(alpha: 0.35),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(
-                  color: isMine
-                      ? markerColor.withValues(alpha: 0.5)
-                      : Colors.white.withValues(alpha: 0.08),
+    return Semantics(
+      button: true,
+      label: '${_compactStarLabel(star)} 별 상세 열기',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 96, minHeight: 96),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                if (isMine || isSeen)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isMine
+                          ? const Color(0xFF3B1F3C).withValues(alpha: 0.9)
+                          : Colors.black.withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: isMine
+                            ? markerColor.withValues(alpha: 0.5)
+                            : Colors.white.withValues(alpha: 0.08),
+                      ),
+                    ),
+                    child: Text(
+                      isMine ? '내 별' : '읽음',
+                      style: TextStyle(
+                        color: isMine
+                            ? const Color(0xFFFFD7EA)
+                            : Colors.white70,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                Container(
+                  width: isMine ? size + 12 : size,
+                  height: isMine ? size + 12 : size,
+                  padding: EdgeInsets.all(isMine ? 4 : 0),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isMine
+                        ? const Color(0xFF0F1020).withValues(alpha: 0.72)
+                        : null,
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: markerColor.withValues(
+                          alpha: isMine ? 0.5 : 0.56,
+                        ),
+                        blurRadius: isMine ? 30 : 16,
+                      ),
+                    ],
+                    border: Border.all(
+                      color: isMine
+                          ? markerColor.withValues(alpha: 0.82)
+                          : Colors.white.withValues(alpha: 0.1),
+                      width: isMine ? 2 : 1,
+                    ),
+                  ),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: <Color>[
+                          color,
+                          color.withValues(alpha: isSeen ? 0.03 : 0.12),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-              child: Text(
-                isMine ? '내 별' : '읽음',
-                style: TextStyle(
-                  color: isMine ? const Color(0xFFFFD7EA) : Colors.white70,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          Container(
-            width: isMine ? size + 12 : size,
-            height: isMine ? size + 12 : size,
-            padding: EdgeInsets.all(isMine ? 4 : 0),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: isMine
-                  ? const Color(0xFF0F1020).withValues(alpha: 0.72)
-                  : null,
-              boxShadow: <BoxShadow>[
-                BoxShadow(
-                  color: markerColor.withValues(alpha: isMine ? 0.5 : 0.56),
-                  blurRadius: isMine ? 30 : 16,
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: 86,
+                  child: Text(
+                    _compactStarLabel(star),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.62),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ],
-              border: Border.all(
-                color: isMine
-                    ? markerColor.withValues(alpha: 0.82)
-                    : Colors.white.withValues(alpha: 0.1),
-                width: isMine ? 2 : 1,
-              ),
-            ),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: <Color>[
-                    color,
-                    color.withValues(alpha: isSeen ? 0.03 : 0.12),
-                  ],
-                ),
-              ),
             ),
           ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: 86,
-            child: Text(
-              _compactStarLabel(star),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.62),
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
