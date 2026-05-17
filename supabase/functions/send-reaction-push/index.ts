@@ -33,7 +33,6 @@ type ReactionRow = {
 };
 
 type ProfileRow = {
-  nickname: string | null;
   push_token: string | null;
 };
 
@@ -67,10 +66,10 @@ Deno.serve(async (request: Request): Promise<Response> => {
       return jsonResponse({ error: "Forbidden" }, { status: 403 });
     }
 
-    const [recipientProfile, senderProfile] = await Promise.all([
-      fetchProfile(adminClient, reaction.stars.user_id),
-      fetchProfile(adminClient, reaction.sender_user_id),
-    ]);
+    const recipientProfile = await fetchProfile(
+      adminClient,
+      reaction.stars.user_id,
+    );
 
     const pushToken = recipientProfile?.push_token?.trim();
     if (!pushToken) {
@@ -81,10 +80,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
     }
 
     const accessToken = await issueFirebaseAccessToken();
-    const notification = buildNotificationMessage(
-      reaction,
-      senderProfile?.nickname,
-    );
+    const notification = buildNotificationMessage(reaction);
     const sendResult = await sendFirebaseMessage(
       accessToken,
       pushToken,
@@ -184,7 +180,7 @@ async function fetchProfile(
 ): Promise<ProfileRow | null> {
   const { data, error } = await client
     .from("profiles")
-    .select("nickname,push_token")
+    .select("push_token")
     .eq("id", userId)
     .maybeSingle();
 
@@ -197,28 +193,44 @@ async function fetchProfile(
 
 function buildNotificationMessage(
   reaction: ReactionRow,
-  senderNickname: string | null,
 ): { title: string; body: string } {
-  const trimmedSender = senderNickname?.trim() ?? "";
-  const sender = trimmedSender.length > 0 ? trimmedSender : "Someone";
   const starPreview = truncateText(reaction.stars.content, 26);
 
   switch (reaction.reaction_types.code) {
     case "WARM_COFFEE":
       return {
-        title: "Coffee sent",
-        body: `${sender} sent coffee to your star: "${starPreview}"`,
+        title: "커피가 도착했어요",
+        body: `"${starPreview}" 별에 커피가 도착했어요.`,
       };
     case "LETTER":
       return {
-        title: "Letter sent",
-        body: `${sender} sent a letter to your star: "${starPreview}"`,
+        title: "편지가 도착했어요",
+        body: `"${starPreview}" 별에 편지가 도착했어요.`,
+      };
+    case "HUG":
+      return {
+        title: "새로운 위로가 도착했어요",
+        body: `"${starPreview}" 별에 '안아드려요' 리액션이 도착했어요.`,
+      };
+    case "WARM_TEA":
+      return {
+        title: "새로운 위로가 도착했어요",
+        body: `"${starPreview}" 별에 '따뜻한 차' 리액션이 도착했어요.`,
+      };
+    case "YOU_DID_WELL":
+      return {
+        title: "새로운 위로가 도착했어요",
+        body: `"${starPreview}" 별에 '고생했어요' 리액션이 도착했어요.`,
+      };
+    case "WITH_YOU":
+      return {
+        title: "새로운 위로가 도착했어요",
+        body: `"${starPreview}" 별에 '함께해요' 리액션이 도착했어요.`,
       };
     default:
       return {
-        title: "New reaction received",
-        body:
-          `${sender} sent a ${reaction.reaction_types.label_ko} reaction to your star: "${starPreview}"`,
+        title: "새로운 리액션이 도착했어요",
+        body: `"${starPreview}" 별에 '${reaction.reaction_types.label_ko}' 리액션이 도착했어요.`,
       };
   }
 }

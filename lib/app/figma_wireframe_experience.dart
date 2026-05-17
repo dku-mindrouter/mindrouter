@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../pages/comfort/presentation/comfort_page.dart';
 import '../pages/constellation/presentation/constellation_page.dart';
@@ -30,14 +31,38 @@ class FigmaWireframeExperience extends StatefulWidget {
 }
 
 class _FigmaWireframeExperienceState extends State<FigmaWireframeExperience> {
-  bool _hasCompletedOnboarding = false;
+  static const String _onboardingCompletedKey =
+      'mindfulconnect.onboarding_completed';
+
+  bool? _hasCompletedOnboarding;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOnboardingState();
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (!_hasCompletedOnboarding) {
+    final bool? hasCompletedOnboarding = _hasCompletedOnboarding;
+
+    if (hasCompletedOnboarding == null) {
+      return const Scaffold(
+        backgroundColor: Color(0xFF0A0B14),
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFF818CF8)),
+        ),
+      );
+    }
+
+    if (!hasCompletedOnboarding) {
       return _OnboardingFlow(
         previewMessage: widget.previewMessage,
-        onComplete: () {
+        onComplete: () async {
+          await _saveOnboardingState();
+          if (!mounted) {
+            return;
+          }
           setState(() {
             _hasCompletedOnboarding = true;
           });
@@ -52,6 +77,25 @@ class _FigmaWireframeExperienceState extends State<FigmaWireframeExperience> {
       userId: widget.userId,
       previewMessage: widget.previewMessage,
     );
+  }
+
+  Future<void> _loadOnboardingState() async {
+    final SharedPreferences preferences = await SharedPreferences.getInstance();
+    final bool hasCompleted =
+        preferences.getBool(_onboardingCompletedKey) ?? false;
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _hasCompletedOnboarding = hasCompleted;
+    });
+  }
+
+  Future<void> _saveOnboardingState() async {
+    final SharedPreferences preferences = await SharedPreferences.getInstance();
+    await preferences.setBool(_onboardingCompletedKey, true);
   }
 }
 
