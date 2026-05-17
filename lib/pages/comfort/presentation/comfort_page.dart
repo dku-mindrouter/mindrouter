@@ -1,14 +1,127 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../shared/widgets/app_panel_card.dart';
+import '../data/comfort_repository.dart';
+import '../data/supabase_comfort_data_source.dart';
+import '../domain/comfort_exception.dart';
+import '../domain/comfort_notification.dart';
 
-class ComfortPage extends StatelessWidget {
+class ComfortPage extends StatefulWidget {
   const ComfortPage({super.key});
 
   @override
+  State<ComfortPage> createState() => _ComfortPageState();
+}
+
+class _ComfortPageState extends State<ComfortPage> {
+  late final ComfortRepository _repository = ComfortRepository(
+    dataSource: SupabaseComfortDataSource(client: Supabase.instance.client),
+  );
+
+  late Future<List<ComfortNotification>> _future = _fetchNotifications();
+
+  @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 120),
+    return RefreshIndicator(
+      onRefresh: () async {
+        setState(() {
+          _future = _fetchNotifications();
+        });
+        await _future;
+      },
+      child: FutureBuilder<List<ComfortNotification>>(
+        future: _future,
+        builder:
+            (
+              BuildContext context,
+              AsyncSnapshot<List<ComfortNotification>> snapshot,
+            ) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Center(
+                  child: CircularProgressIndicator(color: Color(0xFF818CF8)),
+                );
+              }
+
+              if (snapshot.hasError) {
+                return ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 120),
+                  children: <Widget>[
+                    const _Header(),
+                    const SizedBox(height: 24),
+                    AppPanelCard(
+                      backgroundColor: Colors.white.withValues(alpha: 0.05),
+                      borderColor: Colors.white.withValues(alpha: 0.06),
+                      child: Text(
+                        _mapErrorToMessage(snapshot.error),
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.82),
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              final List<ComfortNotification> items = snapshot.data ?? const [];
+              return ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 120),
+                children: <Widget>[
+                  const _Header(),
+                  const SizedBox(height: 24),
+                  if (items.isEmpty)
+                    AppPanelCard(
+                      backgroundColor: Colors.white.withValues(alpha: 0.05),
+                      borderColor: Colors.white.withValues(alpha: 0.06),
+                      child: Text(
+                        '아직 도착한 위로가 없어요. 누군가의 반응이나 위로가 오면 이곳에 표시됩니다.',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.72),
+                          height: 1.5,
+                        ),
+                      ),
+                    )
+                  else
+                    ...items.map(
+                      (ComfortNotification item) => Padding(
+                        padding: const EdgeInsets.only(bottom: 14),
+                        child: _NotificationCard(item: item),
+                      ),
+                    ),
+                ],
+              );
+            },
+      ),
+    );
+  }
+
+  Future<List<ComfortNotification>> _fetchNotifications() {
+    return _repository.fetchComfortNotifications();
+  }
+
+  String _mapErrorToMessage(Object? error) {
+    if (error is ComfortException) {
+      switch (error.code) {
+        case ComfortErrorCode.unauthorized:
+          return '로그인 정보를 확인할 수 없어요. 앱을 다시 실행해 주세요.';
+        case ComfortErrorCode.forbidden:
+          return '위로 내역을 조회할 권한이 없어요.';
+      }
+    }
+    return '위로 내역을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.';
+  }
+}
+
+class _Header extends StatelessWidget {
+  const _Header();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Text(
           '받은 위로',
@@ -19,71 +132,9 @@ class ComfortPage extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          '당신의 밤을 밝힌 따뜻한 마음들',
+          '내 별에 도착한 실제 리액션과 위로를 이곳에서 확인할 수 있어요.',
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
             color: Colors.white.withValues(alpha: 0.64),
-          ),
-        ),
-        const SizedBox(height: 24),
-        ..._comfortItems.map(
-          (_ComfortItemData item) => Padding(
-            padding: const EdgeInsets.only(bottom: 14),
-            child: AppPanelCard(
-              backgroundColor: Colors.white.withValues(alpha: 0.05),
-              borderColor: Colors.white.withValues(alpha: 0.06),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: item.color.withValues(alpha: 0.14),
-                    ),
-                    child: Icon(item.icon, color: item.color),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Row(
-                          children: <Widget>[
-                            Expanded(
-                              child: Text(
-                                item.title,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ),
-                            Text(
-                              item.time,
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.42),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          item.description,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.68),
-                            height: 1.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ),
         ),
       ],
@@ -91,49 +142,129 @@ class ComfortPage extends StatelessWidget {
   }
 }
 
-class _ComfortItemData {
-  const _ComfortItemData({
-    required this.title,
-    required this.description,
-    required this.time,
-    required this.icon,
-    required this.color,
-  });
+class _NotificationCard extends StatelessWidget {
+  const _NotificationCard({required this.item});
 
-  final String title;
-  final String description;
-  final String time;
-  final IconData icon;
-  final Color color;
+  final ComfortNotification item;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color color = _accentColor(item.accentColor);
+    final IconData icon = _iconFor(item.icon);
+
+    return AppPanelCard(
+      backgroundColor: Colors.white.withValues(alpha: 0.05),
+      borderColor: Colors.white.withValues(alpha: 0.06),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color.withValues(alpha: 0.14),
+            ),
+            child: Icon(icon, color: color),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        item.title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      _formatRelativeTime(item.eventAt),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.42),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  item.body,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.68),
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-const List<_ComfortItemData> _comfortItems = <_ComfortItemData>[
-  _ComfortItemData(
-    title: '따뜻한 차',
-    description: '누군가 당신의 별에 따뜻한 차를 전했습니다.',
-    time: '10분 전',
-    icon: Icons.coffee_outlined,
-    color: Color(0xFFFBBF24),
-  ),
-  _ComfortItemData(
-    title: '안아드려요',
-    description: '익명의 이웃이 당신을 따뜻하게 안아주었습니다.',
-    time: '2시간 전',
-    icon: Icons.favorite_border,
-    color: Color(0xFFFB7185),
-  ),
-  _ComfortItemData(
-    title: '오늘의 심리 스니펫',
-    description: '자고 일어났는데 무기력하다면, 오늘 점심엔 5분만 햇볕을 쬐어보세요. 세로토닌이 올라옵니다.',
-    time: '어제',
-    icon: Icons.auto_awesome_outlined,
-    color: Color(0xFF818CF8),
-  ),
-  _ComfortItemData(
-    title: '가벼운 산책',
-    description: '오늘 날씨가 맑아요. 좋아하는 음악 틀고 딱 10분만 걸어볼까요?',
-    time: '어제',
-    icon: Icons.wb_cloudy_outlined,
-    color: Color(0xFF38BDF8),
-  ),
-];
+IconData _iconFor(String icon) {
+  switch (icon) {
+    case 'tea':
+      return Icons.local_cafe_outlined;
+    case 'coffee':
+      return Icons.coffee_outlined;
+    case 'hug':
+      return Icons.favorite_border;
+    case 'clover':
+      return Icons.auto_awesome;
+    case 'stars':
+      return Icons.nightlight_round;
+    case 'letter':
+      return Icons.mail_outline_rounded;
+    case 'auto_awesome':
+      return Icons.auto_awesome_outlined;
+    default:
+      return Icons.notifications_none_rounded;
+  }
+}
+
+Color _accentColor(String accent) {
+  switch (accent) {
+    case 'amber':
+      return const Color(0xFFFBBF24);
+    case 'coffee':
+      return const Color(0xFFC08457);
+    case 'rose':
+      return const Color(0xFFFB7185);
+    case 'sky':
+      return const Color(0xFF38BDF8);
+    case 'violet':
+      return const Color(0xFF818CF8);
+    case 'indigo':
+      return const Color(0xFFA5B4FC);
+    default:
+      return const Color(0xFFA5B4FC);
+  }
+}
+
+String _formatRelativeTime(DateTime eventAt) {
+  final Duration difference = DateTime.now().difference(eventAt.toLocal());
+  if (difference.inMinutes < 1) {
+    return '방금';
+  }
+  if (difference.inMinutes < 60) {
+    return '${difference.inMinutes}분 전';
+  }
+  if (difference.inHours < 24) {
+    return '${difference.inHours}시간 전';
+  }
+  if (difference.inDays < 7) {
+    return '${difference.inDays}일 전';
+  }
+  final DateTime local = eventAt.toLocal();
+  return '${local.month}/${local.day}';
+}
