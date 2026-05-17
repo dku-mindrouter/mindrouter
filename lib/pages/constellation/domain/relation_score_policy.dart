@@ -31,14 +31,10 @@ String _mapTagIdToEmotionGroup(int tagId) {
 }
 
 const Map<int, String> _emotionTagDictionary = <int, String>{
-  1: '공허함',
-  2: '지침',
-  3: '무기력',
-  4: '외로움',
-  5: '번아웃',
-  6: '불안',
-  7: '답답함',
-  8: '잔잔함',
-  9: '안도',
-  10: '위로받고 싶음',
+  1: '불안함',
+  2: '우울함',
+  3: '지침/무기력',
+  4: '예민함/짜증',
+  5: '평온함/잔잔함',
+  6: '기대감/활력',
 };

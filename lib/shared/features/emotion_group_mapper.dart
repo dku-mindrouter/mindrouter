@@ -20,33 +20,10 @@ String mapEmotionGroup({required String tagNameKo}) {
   return 'neutral';
 }
 
-const Set<String> _positiveEmotionTags = <String>{
-  '기쁨',
-  '행복',
-  '설렘',
-  '감사',
-  '뿌듯함',
-};
+const Set<String> _positiveEmotionTags = <String>{'기대감/활력'};
 
-const Set<String> _negativeEmotionTags = <String>{
-  '분노',
-  '짜증',
-  '우울',
-  '슬픔',
-  '상처',
-};
+const Set<String> _negativeEmotionTags = <String>{'우울함', '지침/무기력', '예민함/짜증'};
 
-const Set<String> _anxiousEmotionTags = <String>{
-  '불안',
-  '긴장',
-  '걱정',
-  '초조',
-  '두려움',
-};
+const Set<String> _anxiousEmotionTags = <String>{'불안함'};
 
-const Set<String> _calmEmotionTags = <String>{
-  '평온',
-  '안정',
-  '무난',
-  '담담',
-};
+const Set<String> _calmEmotionTags = <String>{'평온함/잔잔함'};
