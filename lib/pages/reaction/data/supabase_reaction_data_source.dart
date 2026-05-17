@@ -40,4 +40,12 @@ class SupabaseReactionDataSource implements ReactionDataSource {
   Future<dynamic> fetchReactionQuota() {
     return _client.rpc('get_today_status');
   }
+
+  @override
+  Future<void> notifyReactionPush({required String reactionId}) async {
+    await _client.functions.invoke(
+      'send-reaction-push',
+      body: <String, dynamic>{'reactionId': reactionId},
+    );
+  }
 }

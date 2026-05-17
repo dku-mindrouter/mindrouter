@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import 'app/app_bootstrap.dart';
@@ -6,6 +7,7 @@ import 'pages/auth/presentation/app_entry_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await _initializeFirebase();
 
   final AppConfig config = AppConfig.fromEnvironment();
   final AppBootstrap bootstrap = await AppBootstrapper(
@@ -44,5 +46,13 @@ class MyApp extends StatelessWidget {
       ),
       home: AppEntryPage(bootstrap: bootstrap),
     );
+  }
+}
+
+Future<void> _initializeFirebase() async {
+  try {
+    await Firebase.initializeApp();
+  } catch (error) {
+    debugPrint('Firebase initialization skipped: $error');
   }
 }

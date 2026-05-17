@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -5,6 +7,7 @@ import '../../../app/app_bootstrap.dart';
 import '../../../app/figma_wireframe_experience.dart';
 import '../data/auth_repository.dart';
 import '../data/profile_repository.dart';
+import '../data/push_notification_registrar.dart';
 import '../data/supabase_auth_data_source.dart';
 import '../domain/auth_route_policy.dart';
 import '../domain/auth_validators.dart';
@@ -181,18 +184,58 @@ class AuthGateResult {
   final String nextRoute;
 }
 
-class SignedInHomePage extends StatelessWidget {
+class SignedInHomePage extends StatefulWidget {
   const SignedInHomePage({super.key, required this.result});
 
   final AuthGateResult result;
 
   @override
+  State<SignedInHomePage> createState() => _SignedInHomePageState();
+}
+
+class _SignedInHomePageState extends State<SignedInHomePage> {
+  late final PushNotificationRegistrar _pushNotificationRegistrar;
+
+  @override
+  void initState() {
+    super.initState();
+
+    final SupabaseAuthDataSource dataSource = SupabaseAuthDataSource(
+      client: Supabase.instance.client,
+    );
+    final ProfileRepository profileRepository = ProfileRepository(
+      dataSource: dataSource,
+    );
+    _pushNotificationRegistrar = PushNotificationRegistrar(
+      profileRepository: profileRepository,
+    );
+
+    unawaited(_registerPushToken());
+  }
+
+  @override
+  void dispose() {
+    unawaited(_pushNotificationRegistrar.dispose());
+    super.dispose();
+  }
+
+  Future<void> _registerPushToken() async {
+    try {
+      await _pushNotificationRegistrar.registerForUser(
+        userId: widget.result.userId,
+      );
+    } catch (_) {
+      // Push token registration is best-effort and must not block app entry.
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return FigmaWireframeExperience(
-      userId: result.userId,
-      nickname: result.nickname,
-      timezone: result.timezone,
-      nextRoute: result.nextRoute,
+      userId: widget.result.userId,
+      nickname: widget.result.nickname,
+      timezone: widget.result.timezone,
+      nextRoute: widget.result.nextRoute,
     );
   }
 }

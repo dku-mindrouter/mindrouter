@@ -7,4 +7,6 @@ abstract class ReactionDataSource {
   });
 
   Future<dynamic> fetchReactionQuota();
+
+  Future<void> notifyReactionPush({required String reactionId});
 }

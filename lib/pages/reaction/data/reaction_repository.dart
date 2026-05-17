@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../../../shared/features/data/app_error.dart';
 import '../../../shared/features/data/execute_with_error_mapping.dart';
 import '../../../shared/features/data/with_retry.dart';
@@ -36,7 +38,7 @@ class ReactionRepository {
     required int reactionTypeId,
   }) async {
     try {
-      return await withRetry(
+      final SendReactionResult result = await withRetry(
         task: () => executeWithErrorMapping<SendReactionResult>(
           action: () async {
             final dynamic raw = await _dataSource.sendReaction(
@@ -50,6 +52,8 @@ class ReactionRepository {
         maxRetryCount: 2,
         shouldRetry: _shouldRetry,
       );
+      unawaited(_notifyReactionPush(reactionId: result.reactionId));
+      return result;
     } catch (error) {
       throw mapToReactionException(error);
     }
@@ -99,5 +103,13 @@ class ReactionRepository {
   bool _shouldRetry(Object error) {
     return error is MappedAppException &&
         error.code == ReactionErrorCode.internalError;
+  }
+
+  Future<void> _notifyReactionPush({required String reactionId}) async {
+    try {
+      await _dataSource.notifyReactionPush(reactionId: reactionId);
+    } catch (_) {
+      // Push delivery is best-effort and must not roll back reaction success.
+    }
   }
 }
