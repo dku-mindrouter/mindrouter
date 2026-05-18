@@ -6,6 +6,7 @@ import '../../../shared/features/data/with_retry.dart';
 import '../domain/daily_quota.dart';
 import '../domain/reaction_exception.dart';
 import '../domain/reaction_type.dart';
+import '../domain/send_letter_result.dart';
 import '../domain/send_reaction_result.dart';
 import 'reaction_data_source.dart';
 
@@ -54,6 +55,30 @@ class ReactionRepository {
       );
       unawaited(_notifyReactionPush(reactionId: result.reactionId));
       return result;
+    } catch (error) {
+      throw mapToReactionException(error);
+    }
+  }
+
+  Future<SendLetterResult> sendLetter({
+    required String starId,
+    required String content,
+  }) async {
+    try {
+      return await withRetry(
+        task: () => executeWithErrorMapping<SendLetterResult>(
+          action: () async {
+            final dynamic raw = await _dataSource.sendLetter(
+              starId: starId,
+              content: content,
+            );
+            final Map<String, dynamic> row = _firstRow(raw);
+            return SendLetterResult.fromMap(row);
+          },
+        ),
+        maxRetryCount: 2,
+        shouldRetry: _shouldRetry,
+      );
     } catch (error) {
       throw mapToReactionException(error);
     }

@@ -3,37 +3,28 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-cron-secret",
 };
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const firebaseProjectId = Deno.env.get("FIREBASE_PROJECT_ID") ?? "";
 const firebaseClientEmail = Deno.env.get("FIREBASE_CLIENT_EMAIL") ?? "";
 const firebasePrivateKey = (Deno.env.get("FIREBASE_PRIVATE_KEY") ?? "")
   .replaceAll("\\n", "\n");
+const cronSecret = Deno.env.get("DELIVER_LETTERS_CRON_SECRET") ?? "";
 
-type ReactionPayload = {
-  reactionId?: string;
-};
-
-type ReactionRow = {
+type LetterRow = {
   id: string;
   star_id: string;
-  sender_user_id: string;
-  reaction_types: {
-    code: string;
-    label_ko: string;
-  };
+  recipient_user_id: string;
+  content: string;
   stars: {
-    user_id: string;
     content: string;
   };
-};
-
-type ProfileRow = {
-  push_token: string | null;
+  profiles: {
+    push_token: string | null;
+  };
 };
 
 Deno.serve(async (request: Request): Promise<Response> => {
@@ -43,74 +34,49 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
   try {
     validateEnvironment();
-
-    const payload = (await request.json()) as ReactionPayload;
-    const reactionId = payload.reactionId?.trim();
-    if (!reactionId) {
-      return jsonResponse({ error: "reactionId is required" }, { status: 400 });
-    }
-
-    const authHeader = request.headers.get("Authorization") ?? "";
-    const requesterUserId = await getRequesterUserId(authHeader);
-    if (!requesterUserId) {
+    if (request.headers.get("x-cron-secret") !== cronSecret) {
       return jsonResponse({ error: "Unauthorized" }, { status: 401 });
     }
 
     const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey);
-    const reaction = await fetchReaction(adminClient, reactionId);
-    if (!reaction) {
-      return jsonResponse({ error: "Reaction not found" }, { status: 404 });
-    }
-
-    if (reaction.sender_user_id !== requesterUserId) {
-      return jsonResponse({ error: "Forbidden" }, { status: 403 });
-    }
-
-    if (reaction.reaction_types.code === "LETTER") {
-      return jsonResponse(
-        { delivered: false, skipped: true, reason: "delayed_letter" },
-        { status: 200 },
-      );
-    }
-
-    const recipientProfile = await fetchProfile(
-      adminClient,
-      reaction.stars.user_id,
-    );
-
-    const pushToken = recipientProfile?.push_token?.trim();
-    if (!pushToken) {
-      return jsonResponse(
-        { delivered: false, skipped: true, reason: "missing_push_token" },
-        { status: 200 },
-      );
+    const letters = await fetchDueLetters(adminClient);
+    if (letters.length === 0) {
+      return jsonResponse({ delivered: 0 }, { status: 200 });
     }
 
     const accessToken = await issueFirebaseAccessToken();
-    const notification = buildNotificationMessage(reaction);
-    const sendResult = await sendFirebaseMessage(
-      accessToken,
-      pushToken,
-      notification,
-      reaction,
-    );
+    let delivered = 0;
 
-    if (!sendResult.ok) {
-      const errorBody = await readJson(sendResult.response);
-      if (isExpiredTokenError(errorBody)) {
-        await adminClient
-          .from("profiles")
-          .update({ push_token: null })
-          .eq("id", reaction.stars.user_id);
+    for (const letter of letters) {
+      const pushToken = letter.profiles.push_token?.trim();
+      if (pushToken) {
+        const response = await sendFirebaseMessage(
+          accessToken,
+          pushToken,
+          buildNotification(letter),
+          letter,
+        );
+
+        if (!response.ok) {
+          const errorBody = await readJson(response);
+          if (isExpiredTokenError(errorBody)) {
+            await adminClient
+              .from("profiles")
+              .update({ push_token: null })
+              .eq("id", letter.recipient_user_id);
+          }
+        }
       }
 
-      return jsonResponse(
-        { delivered: false, error: errorBody },
-        { status: sendResult.response.status },
-      );
+      await adminClient
+        .from("letter_deliveries")
+        .update({ delivered_at: new Date().toISOString() })
+        .eq("id", letter.id)
+        .is("delivered_at", null);
+      delivered += 1;
     }
 
-    return jsonResponse({ delivered: true }, { status: 200 });
+    return jsonResponse({ delivered }, { status: 200 });
   } catch (error) {
     return jsonResponse(
       { error: error instanceof Error ? error.message : String(error) },
@@ -122,11 +88,11 @@ Deno.serve(async (request: Request): Promise<Response> => {
 function validateEnvironment(): void {
   const required = [
     ["SUPABASE_URL", supabaseUrl],
-    ["SUPABASE_ANON_KEY", supabaseAnonKey],
     ["SUPABASE_SERVICE_ROLE_KEY", supabaseServiceRoleKey],
     ["FIREBASE_PROJECT_ID", firebaseProjectId],
     ["FIREBASE_CLIENT_EMAIL", firebaseClientEmail],
     ["FIREBASE_PRIVATE_KEY", firebasePrivateKey],
+    ["DELIVER_LETTERS_CRON_SECRET", cronSecret],
   ];
 
   for (const [name, value] of required) {
@@ -136,110 +102,40 @@ function validateEnvironment(): void {
   }
 }
 
-async function getRequesterUserId(
-  authHeader: string,
-): Promise<string | null> {
-  if (!authHeader) {
-    return null;
-  }
-
-  const client = createClient(supabaseUrl, supabaseAnonKey, {
-    global: {
-      headers: {
-        Authorization: authHeader,
-      },
-    },
-  });
-  const {
-    data: { user },
-  } = await client.auth.getUser();
-  return user?.id ?? null;
-}
-
-async function fetchReaction(
+async function fetchDueLetters(
   client: ReturnType<typeof createClient>,
-  reactionId: string,
-): Promise<ReactionRow | null> {
+): Promise<LetterRow[]> {
   const { data, error } = await client
-    .from("reactions")
+    .from("letter_deliveries")
     .select(
       `
         id,
         star_id,
-        sender_user_id,
-        reaction_types!inner(code,label_ko),
-        stars!inner(user_id,content)
+        recipient_user_id,
+        content,
+        stars!inner(content),
+        profiles!letter_deliveries_recipient_user_id_fkey(push_token)
       `,
     )
-    .eq("id", reactionId)
-    .maybeSingle();
+    .lte("deliver_at", new Date().toISOString())
+    .is("delivered_at", null)
+    .eq("is_deleted", false)
+    .order("deliver_at", { ascending: true })
+    .limit(100);
 
   if (error) {
     throw error;
   }
 
-  return data as ReactionRow | null;
+  return (data ?? []) as LetterRow[];
 }
 
-async function fetchProfile(
-  client: ReturnType<typeof createClient>,
-  userId: string,
-): Promise<ProfileRow | null> {
-  const { data, error } = await client
-    .from("profiles")
-    .select("push_token")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (error) {
-    throw error;
-  }
-
-  return data as ProfileRow | null;
-}
-
-function buildNotificationMessage(
-  reaction: ReactionRow,
-): { title: string; body: string } {
-  const starPreview = truncateText(reaction.stars.content, 26);
-
-  switch (reaction.reaction_types.code) {
-    case "WARM_COFFEE":
-      return {
-        title: "커피가 도착했어요",
-        body: `"${starPreview}" 별에 커피가 도착했어요.`,
-      };
-    case "LETTER":
-      return {
-        title: "편지가 도착했어요",
-        body: `"${starPreview}" 별에 편지가 도착했어요.`,
-      };
-    case "HUG":
-      return {
-        title: "새로운 위로가 도착했어요",
-        body: `"${starPreview}" 별에 '안아드려요' 리액션이 도착했어요.`,
-      };
-    case "WARM_TEA":
-      return {
-        title: "새로운 위로가 도착했어요",
-        body: `"${starPreview}" 별에 '따뜻한 차' 리액션이 도착했어요.`,
-      };
-    case "YOU_DID_WELL":
-      return {
-        title: "새로운 위로가 도착했어요",
-        body: `"${starPreview}" 별에 '고생했어요' 리액션이 도착했어요.`,
-      };
-    case "WITH_YOU":
-      return {
-        title: "새로운 위로가 도착했어요",
-        body: `"${starPreview}" 별에 '함께해요' 리액션이 도착했어요.`,
-      };
-    default:
-      return {
-        title: "새로운 리액션이 도착했어요",
-        body: `"${starPreview}" 별에 '${reaction.reaction_types.label_ko}' 리액션이 도착했어요.`,
-      };
-  }
+function buildNotification(letter: LetterRow): { title: string; body: string } {
+  const starPreview = truncateText(letter.stars.content, 26);
+  return {
+    title: "익명 편지가 도착했어요",
+    body: `"${starPreview}" 별에 편지가 도착했어요.`,
+  };
 }
 
 async function issueFirebaseAccessToken(): Promise<string> {
@@ -278,21 +174,14 @@ async function issueFirebaseAccessToken(): Promise<string> {
 async function createServiceAccountJwt(
   payload: Record<string, string | number>,
 ): Promise<string> {
-  const header = {
-    alg: "RS256",
-    typ: "JWT",
-  };
-
+  const header = { alg: "RS256", typ: "JWT" };
   const encodedHeader = base64UrlEncodeJson(header);
   const encodedPayload = base64UrlEncodeJson(payload);
   const signingInput = `${encodedHeader}.${encodedPayload}`;
   const privateKey = await crypto.subtle.importKey(
     "pkcs8",
     pemToArrayBuffer(firebasePrivateKey),
-    {
-      name: "RSASSA-PKCS1-v1_5",
-      hash: "SHA-256",
-    },
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
     false,
     ["sign"],
   );
@@ -301,7 +190,6 @@ async function createServiceAccountJwt(
     privateKey,
     new TextEncoder().encode(signingInput),
   );
-
   return `${signingInput}.${base64UrlEncodeBytes(new Uint8Array(signature))}`;
 }
 
@@ -328,7 +216,6 @@ function base64UrlEncodeBytes(bytes: Uint8Array): string {
   for (const byte of bytes) {
     binary += String.fromCharCode(byte);
   }
-
   return btoa(binary)
     .replaceAll("+", "-")
     .replaceAll("/", "_")
@@ -339,9 +226,9 @@ async function sendFirebaseMessage(
   accessToken: string,
   pushToken: string,
   notification: { title: string; body: string },
-  reaction: ReactionRow,
-): Promise<{ ok: boolean; response: Response }> {
-  const response = await fetch(
+  letter: LetterRow,
+): Promise<Response> {
+  return fetch(
     `https://fcm.googleapis.com/v1/projects/${firebaseProjectId}/messages:send`,
     {
       method: "POST",
@@ -354,23 +241,15 @@ async function sendFirebaseMessage(
           token: pushToken,
           notification,
           data: {
-            type: "reaction",
-            reactionId: reaction.id,
-            starId: reaction.star_id,
-            reactionTypeCode: reaction.reaction_types.code,
+            type: "letter",
+            letterId: letter.id,
+            starId: letter.star_id,
           },
-          android: {
-            priority: "high",
-          },
+          android: { priority: "high" },
         },
       }),
     },
   );
-
-  return {
-    ok: response.ok,
-    response,
-  };
 }
 
 function isExpiredTokenError(errorBody: Record<string, unknown>): boolean {
@@ -391,7 +270,6 @@ async function readJson(response: Response): Promise<Record<string, unknown>> {
   if (!text) {
     return {};
   }
-
   try {
     return JSON.parse(text) as Record<string, unknown>;
   } catch (_) {

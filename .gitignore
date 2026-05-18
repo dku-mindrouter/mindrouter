@@ -16,6 +16,7 @@ supabase/.branches/
 supabase/.temp/
 supabase/functions/.env
 supabase/functions/.env.local
+supabase/functions/.letter_cron_secret
 supabase/functions/.secrets/
 
 # IntelliJ related

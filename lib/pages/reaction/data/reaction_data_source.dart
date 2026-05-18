@@ -6,6 +6,8 @@ abstract class ReactionDataSource {
     required int reactionTypeId,
   });
 
+  Future<dynamic> sendLetter({required String starId, required String content});
+
   Future<dynamic> fetchReactionQuota();
 
   Future<void> notifyReactionPush({required String reactionId});

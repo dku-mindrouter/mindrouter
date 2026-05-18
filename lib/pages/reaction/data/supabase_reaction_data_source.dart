@@ -37,6 +37,17 @@ class SupabaseReactionDataSource implements ReactionDataSource {
   }
 
   @override
+  Future<dynamic> sendLetter({
+    required String starId,
+    required String content,
+  }) {
+    return _client.rpc(
+      'send_letter',
+      params: <String, dynamic>{'p_star_id': starId, 'p_content': content},
+    );
+  }
+
+  @override
   Future<dynamic> fetchReactionQuota() {
     return _client.rpc('get_today_status');
   }

@@ -2,6 +2,7 @@ import '../../../shared/features/data/app_error.dart';
 import '../../../shared/features/data/execute_with_error_mapping.dart';
 import '../../../shared/features/data/with_retry.dart';
 import '../domain/comfort_exception.dart';
+import '../domain/comfort_letter.dart';
 import '../domain/comfort_notification.dart';
 import 'comfort_data_source.dart';
 
@@ -37,6 +38,26 @@ class ComfortRepository {
     }
   }
 
+  Future<ComfortLetter> openLetter({required String letterId}) async {
+    try {
+      return await withRetry(
+        task: () => executeWithErrorMapping<ComfortLetter>(
+          action: () async {
+            final dynamic raw = await _dataSource.openLetter(
+              letterId: letterId,
+            );
+            final Map<String, dynamic> row = _firstRow(raw);
+            return ComfortLetter.fromMap(row);
+          },
+        ),
+        maxRetryCount: 2,
+        shouldRetry: _shouldRetry,
+      );
+    } catch (error) {
+      throw mapToComfortException(error);
+    }
+  }
+
   ComfortException mapToComfortException(Object error) {
     if (error is MappedAppException) {
       return ComfortException(error.code, message: error.message);
@@ -58,6 +79,14 @@ class ComfortRepository {
       return <Map<String, dynamic>>[raw];
     }
     return const <Map<String, dynamic>>[];
+  }
+
+  Map<String, dynamic> _firstRow(dynamic raw) {
+    final List<Map<String, dynamic>> rows = _toRows(raw);
+    if (rows.isNotEmpty) {
+      return rows.first;
+    }
+    throw const FormatException('Unexpected RPC response shape');
   }
 
   bool _shouldRetry(Object error) {

@@ -15,4 +15,12 @@ class SupabaseComfortDataSource implements ComfortDataSource {
       params: <String, dynamic>{'p_limit': limit, 'p_offset': offset},
     );
   }
+
+  @override
+  Future<dynamic> openLetter({required String letterId}) {
+    return _client.rpc(
+      'open_letter',
+      params: <String, dynamic>{'p_letter_id': letterId},
+    );
+  }
 }

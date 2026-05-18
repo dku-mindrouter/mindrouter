@@ -17,6 +17,7 @@ import '../../reaction/data/supabase_reaction_data_source.dart';
 import '../../reaction/domain/reaction_error_message_mapper.dart';
 import '../../reaction/domain/reaction_exception.dart';
 import '../../reaction/domain/reaction_type.dart';
+import '../../reaction/domain/send_letter_result.dart';
 import '../../reaction/domain/send_reaction_result.dart';
 
 class ConstellationPage extends StatefulWidget {
@@ -947,6 +948,11 @@ class _StarDetailPageState extends State<_StarDetailPage> {
       return;
     }
 
+    if (reactionType.code == 'LETTER') {
+      await _sendLetter(reactionType);
+      return;
+    }
+
     if (widget.isPreviewMode) {
       setState(() {
         final Set<int> updatedReactionTypeIds = <int>{
@@ -1001,6 +1007,75 @@ class _StarDetailPageState extends State<_StarDetailPage> {
     }
   }
 
+  Future<void> _sendLetter(ReactionType reactionType) async {
+    final String? content = await _showLetterComposer();
+    if (!mounted || content == null) {
+      return;
+    }
+
+    if (widget.isPreviewMode) {
+      setState(() {
+        final Set<int> updatedReactionTypeIds = <int>{
+          ..._sentReactionTypeIds,
+          reactionType.id,
+        };
+        _sentReactionTypeIds = updatedReactionTypeIds;
+        _star = _copyStarWithReactionState(
+          _star,
+          reactionCount: _star.reactionCount + 1,
+          sentReactionTypeIds: updatedReactionTypeIds,
+        );
+      });
+      _showSnackBar('편지가 하루 뒤 도착하도록 예약됐어요.');
+      return;
+    }
+
+    setState(() {
+      _isSendingReaction = true;
+    });
+
+    try {
+      final SendLetterResult result = await _reactionRepository.sendLetter(
+        starId: _star.starId,
+        content: content,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        final Set<int> updatedReactionTypeIds = <int>{
+          ..._sentReactionTypeIds,
+          reactionType.id,
+        };
+        _isSendingReaction = false;
+        _sentReactionTypeIds = updatedReactionTypeIds;
+        _star = _copyStarWithReactionState(
+          _star,
+          reactionCount: result.reactionCount,
+          sentReactionTypeIds: updatedReactionTypeIds,
+        );
+      });
+      _showSnackBar('편지가 하루 뒤 도착하도록 예약됐어요.');
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isSendingReaction = false;
+      });
+      _showSnackBar(_mapReactionErrorToMessage(error));
+    }
+  }
+
+  Future<String?> _showLetterComposer() {
+    return showDialog<String>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return const _LetterComposerDialog();
+      },
+    );
+  }
+
   List<ReactionType> get _orderedReactionTypes {
     final Map<String, ReactionType> byCode = <String, ReactionType>{
       for (final ReactionType type in _reactionTypes) type.code: type,
@@ -1032,20 +1107,10 @@ class _StarDetailPageState extends State<_StarDetailPage> {
     }
 
     if (_isFeaturedReaction(reactionType.code)) {
-      return !_hasSentFeaturedReaction;
+      return true;
     }
 
     return !_hasSentRegularReaction;
-  }
-
-  bool get _hasSentFeaturedReaction {
-    return _sentReactionTypeIds.any((int reactionTypeId) {
-      return _orderedReactionTypes.any(
-        (ReactionType reactionType) =>
-            reactionType.id == reactionTypeId &&
-            _isFeaturedReaction(reactionType.code),
-      );
-    });
   }
 
   bool get _hasSentRegularReaction {
@@ -1470,6 +1535,100 @@ class _ReactionUnavailableState extends StatelessWidget {
           fontWeight: FontWeight.w700,
         ),
       ),
+    );
+  }
+}
+
+class _LetterComposerDialog extends StatefulWidget {
+  const _LetterComposerDialog();
+
+  @override
+  State<_LetterComposerDialog> createState() => _LetterComposerDialogState();
+}
+
+class _LetterComposerDialogState extends State<_LetterComposerDialog> {
+  static const int _maxLength = 240;
+  late final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String content = _controller.text.trim();
+    final bool canSend = content.isNotEmpty && content.length <= _maxLength;
+
+    return AlertDialog(
+      backgroundColor: const Color(0xFF17182A),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      title: const Text(
+        '익명 편지 보내기',
+        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+      ),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              '편지는 하루 뒤 상대에게 도착합니다.',
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.62)),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              maxLength: _maxLength,
+              minLines: 4,
+              maxLines: 6,
+              onChanged: (_) => setState(() {}),
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: '전하고 싶은 말을 적어주세요.',
+                hintStyle: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.34),
+                ),
+                filled: true,
+                fillColor: Colors.white.withValues(alpha: 0.04),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  borderSide: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.08),
+                  ),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  borderSide: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.08),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  borderSide: const BorderSide(color: Color(0xFFA5B4FC)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('취소'),
+        ),
+        FilledButton(
+          onPressed: canSend ? () => Navigator.of(context).pop(content) : null,
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFF818CF8),
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('전송하기'),
+        ),
+      ],
     );
   }
 }
@@ -2362,13 +2521,13 @@ bool _computeCanReact(Star star, Set<int> sentReactionTypeIds) {
     return false;
   }
 
-  final bool hasSpecialReaction =
-      sentReactionTypeIds.contains(5) || sentReactionTypeIds.contains(6);
+  final bool hasCoffeeReaction = sentReactionTypeIds.contains(5);
+  final bool hasLetterReaction = sentReactionTypeIds.contains(6);
   final bool hasRegularReaction = sentReactionTypeIds.any(
     (int reactionTypeId) => reactionTypeId != 5 && reactionTypeId != 6,
   );
 
-  return !hasSpecialReaction || !hasRegularReaction;
+  return !hasRegularReaction || !hasCoffeeReaction || !hasLetterReaction;
 }
 
 Star _copyStarWithReactionState(

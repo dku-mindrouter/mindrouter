@@ -5,6 +5,7 @@ import '../../../shared/widgets/app_panel_card.dart';
 import '../data/comfort_repository.dart';
 import '../data/supabase_comfort_data_source.dart';
 import '../domain/comfort_exception.dart';
+import '../domain/comfort_letter.dart';
 import '../domain/comfort_notification.dart';
 
 class ComfortPage extends StatefulWidget {
@@ -88,7 +89,12 @@ class _ComfortPageState extends State<ComfortPage> {
                     ...items.map(
                       (ComfortNotification item) => Padding(
                         padding: const EdgeInsets.only(bottom: 14),
-                        child: _NotificationCard(item: item),
+                        child: _NotificationCard(
+                          item: item,
+                          onTap: item.notificationType == 'letter'
+                              ? () => _openLetter(item.id)
+                              : null,
+                        ),
                       ),
                     ),
                 ],
@@ -102,9 +108,39 @@ class _ComfortPageState extends State<ComfortPage> {
     return _repository.fetchComfortNotifications();
   }
 
+  Future<void> _openLetter(String letterId) async {
+    try {
+      final ComfortLetter letter = await _repository.openLetter(
+        letterId: letterId,
+      );
+      if (!mounted) {
+        return;
+      }
+      await showDialog<void>(
+        context: context,
+        builder: (BuildContext context) => _LetterDialog(letter: letter),
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _future = _fetchNotifications();
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_mapErrorToMessage(error))));
+    }
+  }
+
   String _mapErrorToMessage(Object? error) {
     if (error is ComfortException) {
       switch (error.code) {
+        case ComfortErrorCode.letterNotFound:
+          return '편지를 찾을 수 없어요.';
         case ComfortErrorCode.unauthorized:
           return '로그인 정보를 확인할 수 없어요. 앱을 다시 실행해 주세요.';
         case ComfortErrorCode.forbidden:
@@ -143,70 +179,132 @@ class _Header extends StatelessWidget {
 }
 
 class _NotificationCard extends StatelessWidget {
-  const _NotificationCard({required this.item});
+  const _NotificationCard({required this.item, this.onTap});
 
   final ComfortNotification item;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final Color color = _accentColor(item.accentColor);
     final IconData icon = _iconFor(item.icon);
 
-    return AppPanelCard(
-      backgroundColor: Colors.white.withValues(alpha: 0.05),
-      borderColor: Colors.white.withValues(alpha: 0.06),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color.withValues(alpha: 0.14),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(24),
+      child: AppPanelCard(
+        backgroundColor: Colors.white.withValues(alpha: 0.05),
+        borderColor: item.isOpened
+            ? Colors.white.withValues(alpha: 0.06)
+            : color.withValues(alpha: 0.28),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: color.withValues(alpha: 0.14),
+              ),
+              child: Icon(icon, color: color),
             ),
-            child: Icon(icon, color: color),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: Text(
-                        item.title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          item.title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
                         ),
                       ),
-                    ),
-                    Text(
-                      _formatRelativeTime(item.eventAt),
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.42),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
+                      Text(
+                        _formatRelativeTime(item.eventAt),
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.42),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  item.body,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.68),
-                    height: 1.5,
+                    ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 6),
+                  Text(
+                    item.body,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.68),
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+}
+
+class _LetterDialog extends StatelessWidget {
+  const _LetterDialog({required this.letter});
+
+  final ComfortLetter letter;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: const Color(0xFF17182A),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      title: const Text(
+        '익명 편지가 도착했어요',
+        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+      ),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              '"${letter.starContent}" 별에 도착한 편지',
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.52)),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.04),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              child: Text(
+                letter.content,
+                style: const TextStyle(color: Colors.white, height: 1.6),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: <Widget>[
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(),
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFF818CF8),
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('닫기'),
+        ),
+      ],
     );
   }
 }
