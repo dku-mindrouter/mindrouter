@@ -5,6 +5,9 @@ import '../../constellation/data/constellation_repository.dart';
 import '../../constellation/data/supabase_constellation_data_source.dart';
 import '../../constellation/domain/star.dart';
 import '../../constellation/domain/today_status.dart';
+import '../data/profile_repository.dart';
+import '../data/supabase_profile_data_source.dart';
+import '../domain/my_stats.dart';
 import '../../../shared/widgets/app_panel_card.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -35,11 +38,13 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   late Future<_TodayStarPreview> _todayStarFuture;
+  late Future<MyStats> _myStatsFuture;
 
   @override
   void initState() {
     super.initState();
     _todayStarFuture = _loadTodayStarPreview();
+    _myStatsFuture = _loadMyStats();
   }
 
   @override
@@ -49,6 +54,7 @@ class _ProfilePageState extends State<ProfilePage> {
         oldWidget.isPreviewMode != widget.isPreviewMode) {
       setState(() {
         _todayStarFuture = _loadTodayStarPreview();
+        _myStatsFuture = _loadMyStats();
       });
     }
   }
@@ -175,31 +181,43 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ),
         const SizedBox(height: 16),
-        const Row(
-          children: <Widget>[
-            Expanded(
-              child: _MetricCard(
-                icon: Icons.local_fire_department_outlined,
-                iconColor: Color(0xFF818CF8),
-                value: '7',
-                label: '연속 기록일',
-              ),
-            ),
-            SizedBox(width: 14),
-            Expanded(
-              child: _MetricCard(
-                icon: Icons.coffee_outlined,
-                iconColor: Color(0xFFFBBF24),
-                value: '3',
-                label: '오늘 받은 위로',
-              ),
-            ),
-          ],
+        FutureBuilder<MyStats>(
+          future: _myStatsFuture,
+          builder: (BuildContext context, AsyncSnapshot<MyStats> snapshot) {
+            final MyStats stats = snapshot.data ?? MyStats.previewMock();
+            return Row(
+              children: <Widget>[
+                Expanded(
+                  child: _MetricCard(
+                    icon: Icons.local_fire_department_outlined,
+                    iconColor: const Color(0xFF818CF8),
+                    value: '${stats.currentStreak}',
+                    label: '연속 기록일',
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: _MetricCard(
+                    icon: Icons.coffee_outlined,
+                    iconColor: const Color(0xFFFBBF24),
+                    value: '${stats.todayReceivedComfortCount}',
+                    label: '오늘 받은 위로',
+                  ),
+                ),
+              ],
+            );
+          },
         ),
         const SizedBox(height: 16),
         _WeeklyMoodChart(data: weeklyMood),
         const SizedBox(height: 16),
-        const _NextBadgeCard(),
+        FutureBuilder<MyStats>(
+          future: _myStatsFuture,
+          builder: (BuildContext context, AsyncSnapshot<MyStats> snapshot) {
+            final MyStats stats = snapshot.data ?? MyStats.previewMock();
+            return _NextBadgeCard(stats: stats);
+          },
+        ),
         const SizedBox(height: 16),
         _ProfileField(label: 'nickname', value: widget.nickname),
         _ProfileField(label: 'timezone', value: widget.timezone),
@@ -207,6 +225,22 @@ class _ProfilePageState extends State<ProfilePage> {
         _ProfileField(label: 'user id', value: widget.userId),
       ],
     );
+  }
+
+  Future<MyStats> _loadMyStats() async {
+    if (widget.isPreviewMode) {
+      return MyStats.previewMock();
+    }
+
+    try {
+      final SupabaseClient client = Supabase.instance.client;
+      final ProfileRepository repository = ProfileRepository(
+        dataSource: SupabaseProfileDataSource(client: client),
+      );
+      return await repository.fetchMyStats();
+    } catch (_) {
+      return MyStats.previewMock();
+    }
   }
 
   Future<_TodayStarPreview> _loadTodayStarPreview() async {
@@ -646,10 +680,15 @@ class _WeeklyMoodChart extends StatelessWidget {
 }
 
 class _NextBadgeCard extends StatelessWidget {
-  const _NextBadgeCard();
+  const _NextBadgeCard({required this.stats});
+
+  final MyStats stats;
 
   @override
   Widget build(BuildContext context) {
+    final int remainingDays = (MyStats.nextBadgeGoal - stats.currentStreak)
+        .clamp(0, MyStats.nextBadgeGoal);
+
     return AppPanelCard(
       padding: const EdgeInsets.all(18),
       backgroundColor: const Color(0x801C1E34),
@@ -657,25 +696,29 @@ class _NextBadgeCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const Row(
+          Row(
             children: <Widget>[
               Text(
-                '다음 뱃지까지 3일',
-                style: TextStyle(
+                '다음 뱃지까지 $remainingDays일',
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              SizedBox(width: 6),
-              Icon(Icons.auto_awesome, color: Color(0xFFFDE68A), size: 16),
+              const SizedBox(width: 6),
+              const Icon(
+                Icons.auto_awesome,
+                color: Color(0xFFFDE68A),
+                size: 16,
+              ),
             ],
           ),
           const SizedBox(height: 14),
           ClipRRect(
             borderRadius: BorderRadius.circular(999),
             child: LinearProgressIndicator(
-              value: 0.7,
+              value: stats.nextBadgeProgress,
               minHeight: 8,
               backgroundColor: Colors.white.withValues(alpha: 0.08),
               valueColor: const AlwaysStoppedAnimation<Color>(
@@ -683,11 +726,10 @@ class _NextBadgeCard extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 10),
           Row(
             children: <Widget>[
               Text(
-                '연속일',
+                '연속',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.44),
                   fontSize: 11,
@@ -696,7 +738,7 @@ class _NextBadgeCard extends StatelessWidget {
               ),
               const Spacer(),
               Text(
-                '7 / 10 streak days',
+                '${stats.currentStreak} / ${MyStats.nextBadgeGoal} 연속일',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.44),
                   fontSize: 11,
