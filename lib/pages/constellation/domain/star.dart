@@ -16,6 +16,7 @@ class Star {
     required this.isExpired,
     required this.isReactable,
     required this.diversityKey,
+    this.myReactionTypeIds = const <int>[],
   });
 
   final String starId;
@@ -34,6 +35,7 @@ class Star {
   final bool isExpired;
   final bool isReactable;
   final String diversityKey;
+  final List<int> myReactionTypeIds;
 
   factory Star.fromFeedMap(Map<String, dynamic> map) {
     final List<int> parsedTagIds = _asIntList(map['tag_ids']);
@@ -58,6 +60,7 @@ class Star {
       isExpired: map['is_expired'] == true,
       isReactable: map['is_reactable'] != false,
       diversityKey: map['emotion_group'] as String? ?? fallbackGroup,
+      myReactionTypeIds: _asReactionTypeIds(map),
     );
   }
 
@@ -86,7 +89,22 @@ class Star {
       diversityKey: _asStringList(map['tag_names']).isNotEmpty
           ? 'tagName:${_asStringList(map['tag_names']).first}'
           : 'detail',
+      myReactionTypeIds: _asReactionTypeIds(map),
     );
+  }
+
+  static List<int> _asReactionTypeIds(Map<String, dynamic> map) {
+    final dynamic rawIds = map['my_reaction_type_ids'];
+    if (rawIds is List) {
+      return _asIntList(rawIds);
+    }
+
+    final int? legacyId = (map['my_reaction_type_id'] as num?)?.toInt();
+    if (legacyId != null) {
+      return <int>[legacyId];
+    }
+
+    return const <int>[];
   }
 
   static List<int> _asIntList(dynamic raw) {

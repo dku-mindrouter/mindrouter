@@ -733,7 +733,7 @@ class _StarDetailPageState extends State<_StarDetailPage> {
   bool _isSendingReaction = false;
   String? _loadErrorMessage;
   List<ReactionType> _reactionTypes = const <ReactionType>[];
-  ReactionType? _sentReactionType;
+  Set<int> _sentReactionTypeIds = <int>{};
 
   ConstellationRepository get _constellationRepository =>
       ConstellationRepository(
@@ -859,8 +859,8 @@ class _StarDetailPageState extends State<_StarDetailPage> {
         const SizedBox(height: 28),
         _ReactionGrid(
           reactionTypes: _orderedReactionTypes,
-          isEnabled: _star.isReactable && !_isSendingReaction,
-          sentReactionType: _sentReactionType,
+          isEnabled: _isReactionTypeEnabled,
+          sentReactionTypeIds: _sentReactionTypeIds,
           onSelect: _sendReaction,
         ),
         const SizedBox(height: 30),
@@ -901,6 +901,7 @@ class _StarDetailPageState extends State<_StarDetailPage> {
             icon: 'letter',
           ),
         ];
+        _sentReactionTypeIds = <int>{};
         _isLoading = false;
       });
       return;
@@ -921,10 +922,13 @@ class _StarDetailPageState extends State<_StarDetailPage> {
         return;
       }
       setState(() {
+        final List<ReactionType> extendedReactionTypes =
+            _withExtendedReactionTypes(reactionTypes);
         _star = resolvedDetail.userId == widget.userId
             ? resolvedDetail
             : _copyStarWithSeen(resolvedDetail);
-        _reactionTypes = _withExtendedReactionTypes(reactionTypes);
+        _reactionTypes = extendedReactionTypes;
+        _sentReactionTypeIds = resolvedDetail.myReactionTypeIds.toSet();
         _isLoading = false;
       });
     } catch (error) {
@@ -939,13 +943,22 @@ class _StarDetailPageState extends State<_StarDetailPage> {
   }
 
   Future<void> _sendReaction(ReactionType reactionType) async {
-    if (_isSendingReaction || !_star.isReactable) {
+    if (!_isReactionTypeEnabled(reactionType)) {
       return;
     }
 
     if (widget.isPreviewMode) {
       setState(() {
-        _sentReactionType = reactionType;
+        final Set<int> updatedReactionTypeIds = <int>{
+          ..._sentReactionTypeIds,
+          reactionType.id,
+        };
+        _sentReactionTypeIds = updatedReactionTypeIds;
+        _star = _copyStarWithReactionState(
+          _star,
+          reactionCount: _star.reactionCount + 1,
+          sentReactionTypeIds: updatedReactionTypeIds,
+        );
       });
       _showSnackBar('${reactionType.labelKo} 리액션을 보냈어요.');
       return;
@@ -964,9 +977,17 @@ class _StarDetailPageState extends State<_StarDetailPage> {
         return;
       }
       setState(() {
+        final Set<int> updatedReactionTypeIds = <int>{
+          ..._sentReactionTypeIds,
+          reactionType.id,
+        };
         _isSendingReaction = false;
-        _sentReactionType = reactionType;
-        _star = _copyStarWithReactionCount(_star, result.reactionCount);
+        _sentReactionTypeIds = updatedReactionTypeIds;
+        _star = _copyStarWithReactionState(
+          _star,
+          reactionCount: result.reactionCount,
+          sentReactionTypeIds: updatedReactionTypeIds,
+        );
       });
       _showSnackBar('${reactionType.labelKo} 리액션을 보냈어요.');
     } catch (error) {
@@ -1000,6 +1021,41 @@ class _StarDetailPageState extends State<_StarDetailPage> {
       return ordered;
     }
     return _reactionTypes;
+  }
+
+  bool _isReactionTypeEnabled(ReactionType reactionType) {
+    if (_isSendingReaction || !_star.isReactable) {
+      return false;
+    }
+    if (_sentReactionTypeIds.contains(reactionType.id)) {
+      return false;
+    }
+
+    if (_isFeaturedReaction(reactionType.code)) {
+      return !_hasSentFeaturedReaction;
+    }
+
+    return !_hasSentRegularReaction;
+  }
+
+  bool get _hasSentFeaturedReaction {
+    return _sentReactionTypeIds.any((int reactionTypeId) {
+      return _orderedReactionTypes.any(
+        (ReactionType reactionType) =>
+            reactionType.id == reactionTypeId &&
+            _isFeaturedReaction(reactionType.code),
+      );
+    });
+  }
+
+  bool get _hasSentRegularReaction {
+    return _sentReactionTypeIds.any((int reactionTypeId) {
+      return _orderedReactionTypes.any(
+        (ReactionType reactionType) =>
+            reactionType.id == reactionTypeId &&
+            !_isFeaturedReaction(reactionType.code),
+      );
+    });
   }
 
   List<ReactionType> _withExtendedReactionTypes(List<ReactionType> source) {
@@ -1308,13 +1364,13 @@ class _ReactionGrid extends StatelessWidget {
   const _ReactionGrid({
     required this.reactionTypes,
     required this.isEnabled,
-    required this.sentReactionType,
+    required this.sentReactionTypeIds,
     required this.onSelect,
   });
 
   final List<ReactionType> reactionTypes;
-  final bool isEnabled;
-  final ReactionType? sentReactionType;
+  final bool Function(ReactionType reactionType) isEnabled;
+  final Set<int> sentReactionTypeIds;
   final ValueChanged<ReactionType> onSelect;
 
   @override
@@ -1353,8 +1409,8 @@ class _ReactionGrid extends StatelessWidget {
               final ReactionType reactionType = featuredReactions[index];
               return _FeaturedReactionCard(
                 reactionType: reactionType,
-                isEnabled: isEnabled,
-                isSelected: sentReactionType?.id == reactionType.id,
+                isEnabled: isEnabled(reactionType),
+                isSelected: sentReactionTypeIds.contains(reactionType.id),
                 onTap: () => onSelect(reactionType),
               );
             },
@@ -1381,8 +1437,8 @@ class _ReactionGrid extends StatelessWidget {
               final ReactionType reactionType = regularReactions[index];
               return _ReactionCard(
                 reactionType: reactionType,
-                isEnabled: isEnabled,
-                isSelected: sentReactionType?.id == reactionType.id,
+                isEnabled: isEnabled(reactionType),
+                isSelected: sentReactionTypeIds.contains(reactionType.id),
                 onTap: () => onSelect(reactionType),
               );
             },
@@ -1517,7 +1573,9 @@ class _FeaturedReactionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final _FeaturedReactionStyle style = _featuredReactionStyle(reactionType.code);
+    final _FeaturedReactionStyle style = _featuredReactionStyle(
+      reactionType.code,
+    );
 
     return Opacity(
       opacity: isEnabled || isSelected ? 1 : 0.42,
@@ -1533,9 +1591,7 @@ class _FeaturedReactionCard extends StatelessWidget {
                   : style.secondary.withValues(alpha: 0.18),
               borderRadius: BorderRadius.circular(22),
               border: Border.all(
-                color: isSelected
-                    ? style.border
-                    : style.border,
+                color: isSelected ? style.border : style.border,
               ),
               boxShadow: <BoxShadow>[
                 BoxShadow(
@@ -1608,10 +1664,7 @@ class _FeaturedReactionCard extends StatelessWidget {
 }
 
 class _ReactionSectionTitle extends StatelessWidget {
-  const _ReactionSectionTitle({
-    required this.title,
-    required this.subtitle,
-  });
+  const _ReactionSectionTitle({required this.title, required this.subtitle});
 
   final String title;
   final String subtitle;
@@ -2230,6 +2283,7 @@ Star _copyStarWithResolvedTagNames(Star star, Map<int, String> tagNameById) {
     isExpired: star.isExpired,
     isReactable: star.isReactable,
     diversityKey: star.diversityKey,
+    myReactionTypeIds: star.myReactionTypeIds,
   );
 }
 
@@ -2303,7 +2357,25 @@ IconData _iconForReaction(ReactionType reactionType) {
   }
 }
 
-Star _copyStarWithReactionCount(Star star, int reactionCount) {
+bool _computeCanReact(Star star, Set<int> sentReactionTypeIds) {
+  if (!star.isReactable) {
+    return false;
+  }
+
+  final bool hasSpecialReaction =
+      sentReactionTypeIds.contains(5) || sentReactionTypeIds.contains(6);
+  final bool hasRegularReaction = sentReactionTypeIds.any(
+    (int reactionTypeId) => reactionTypeId != 5 && reactionTypeId != 6,
+  );
+
+  return !hasSpecialReaction || !hasRegularReaction;
+}
+
+Star _copyStarWithReactionState(
+  Star star, {
+  required int reactionCount,
+  required Set<int> sentReactionTypeIds,
+}) {
   return Star(
     starId: star.starId,
     userId: star.userId,
@@ -2319,8 +2391,9 @@ Star _copyStarWithReactionCount(Star star, int reactionCount) {
     visibilityStatus: star.visibilityStatus,
     isDeleted: star.isDeleted,
     isExpired: star.isExpired,
-    isReactable: false,
+    isReactable: _computeCanReact(star, sentReactionTypeIds),
     diversityKey: star.diversityKey,
+    myReactionTypeIds: sentReactionTypeIds.toList(growable: false),
   );
 }
 
@@ -2342,5 +2415,6 @@ Star _copyStarWithSeen(Star star) {
     isExpired: star.isExpired,
     isReactable: star.isReactable,
     diversityKey: star.diversityKey,
+    myReactionTypeIds: star.myReactionTypeIds,
   );
 }
