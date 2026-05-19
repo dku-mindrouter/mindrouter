@@ -207,37 +207,37 @@ function buildNotificationMessage(
     case "WARM_COFFEE":
       return {
         title: "커피가 도착했어요",
-        body: `"${starPreview}" 별에 커피가 도착했어요.`,
+        body: `"${starPreview}" 별에 커피가 도착했어요`,
       };
     case "LETTER":
       return {
         title: "편지가 도착했어요",
-        body: `"${starPreview}" 별에 편지가 도착했어요.`,
+        body: `"${starPreview}" 별에 편지가 도착했어요`,
       };
     case "HUG":
       return {
         title: "새로운 위로가 도착했어요",
-        body: `"${starPreview}" 별에 '안아드려요' 리액션이 도착했어요.`,
+        body: `"${starPreview}" 별에 '안아드려요' 리액션이 도착했어요`,
       };
     case "WARM_TEA":
       return {
         title: "새로운 위로가 도착했어요",
-        body: `"${starPreview}" 별에 '따뜻한 차' 리액션이 도착했어요.`,
+        body: `"${starPreview}" 별에 '따뜻한 차' 리액션이 도착했어요`,
       };
     case "YOU_DID_WELL":
       return {
         title: "새로운 위로가 도착했어요",
-        body: `"${starPreview}" 별에 '고생했어요' 리액션이 도착했어요.`,
+        body: `"${starPreview}" 별에 '고생했어요' 리액션이 도착했어요`,
       };
     case "WITH_YOU":
       return {
         title: "새로운 위로가 도착했어요",
-        body: `"${starPreview}" 별에 '함께해요' 리액션이 도착했어요.`,
+        body: `"${starPreview}" 별에 '함께해요' 리액션이 도착했어요`,
       };
     default:
       return {
         title: "새로운 리액션이 도착했어요",
-        body: `"${starPreview}" 별에 '${reaction.reaction_types.label_ko}' 리액션이 도착했어요.`,
+        body: `"${starPreview}" 별에 '${reaction.reaction_types.label_ko}' 리액션이 도착했어요`,
       };
   }
 }

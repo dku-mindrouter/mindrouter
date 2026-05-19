@@ -345,6 +345,7 @@ class _MindRouterShellState extends State<_MindRouterShell> {
       _ProfileSubPage.settings => SettingsPage(onBack: _closeProfileSubPage),
       _ProfileSubPage.todayMission => TodayMissionPage(
         onBack: _closeProfileSubPage,
+        isPreviewMode: widget.previewMessage != null,
       ),
       _ProfileSubPage.profile => ProfilePage(
         nickname: widget.nickname,
@@ -473,6 +474,7 @@ class _MindRouterShellState extends State<_MindRouterShell> {
   void _closeProfileSubPage() {
     setState(() {
       _profileSubPage = _ProfileSubPage.profile;
+      _profileRefreshTick += 1;
     });
   }
 }

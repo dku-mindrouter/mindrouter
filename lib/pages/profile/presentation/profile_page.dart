@@ -5,6 +5,9 @@ import '../../constellation/data/constellation_repository.dart';
 import '../../constellation/data/supabase_constellation_data_source.dart';
 import '../../constellation/domain/star.dart';
 import '../../constellation/domain/today_status.dart';
+import '../../nudge/data/nudge_repository.dart';
+import '../../nudge/data/supabase_nudge_data_source.dart';
+import '../../nudge/domain/nudge_mission.dart';
 import '../data/profile_repository.dart';
 import '../data/supabase_profile_data_source.dart';
 import '../domain/my_stats.dart';
@@ -39,12 +42,14 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   late Future<_TodayStarPreview> _todayStarFuture;
   late Future<MyStats> _myStatsFuture;
+  late Future<NudgeMission> _todayMissionFuture;
 
   @override
   void initState() {
     super.initState();
     _todayStarFuture = _loadTodayStarPreview();
     _myStatsFuture = _loadMyStats();
+    _todayMissionFuture = _loadTodayMission();
   }
 
   @override
@@ -55,6 +60,7 @@ class _ProfilePageState extends State<ProfilePage> {
       setState(() {
         _todayStarFuture = _loadTodayStarPreview();
         _myStatsFuture = _loadMyStats();
+        _todayMissionFuture = _loadTodayMission();
       });
     }
   }
@@ -119,68 +125,83 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ),
         const SizedBox(height: 16),
-        Semantics(
-          button: true,
-          label: '오늘의 맞춤 미션, 햇살과 함께 10분 걷기',
-          child: InkWell(
-            onTap: widget.onOpenMission,
-            borderRadius: BorderRadius.circular(28),
-            child: AppPanelCard(
-              padding: const EdgeInsets.all(20),
-              gradient: const LinearGradient(
-                colors: <Color>[Color(0xCC1C1E34), Color(0xCC2A2D4A)],
-              ),
-              borderColor: const Color(0x336366F1),
-              borderRadius: 28,
-              child: Row(
-                children: <Widget>[
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: const BoxDecoration(
-                      borderRadius: BorderRadius.all(Radius.circular(14)),
-                      gradient: LinearGradient(
-                        colors: <Color>[Color(0xFFFBBF24), Color(0xFFF97316)],
+        FutureBuilder<NudgeMission>(
+          future: _todayMissionFuture,
+          builder:
+              (BuildContext context, AsyncSnapshot<NudgeMission> snapshot) {
+                final NudgeMission mission =
+                    snapshot.data ?? NudgeMission.previewMock();
+                return Semantics(
+                  button: true,
+                  label: '오늘의 맞춤 미션, ${mission.title}',
+                  child: InkWell(
+                    onTap: widget.onOpenMission,
+                    borderRadius: BorderRadius.circular(28),
+                    child: AppPanelCard(
+                      padding: const EdgeInsets.all(20),
+                      gradient: const LinearGradient(
+                        colors: <Color>[Color(0xCC1C1E34), Color(0xCC2A2D4A)],
+                      ),
+                      borderColor: const Color(0x336366F1),
+                      borderRadius: 28,
+                      child: Row(
+                        children: <Widget>[
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: const BoxDecoration(
+                              borderRadius: BorderRadius.all(
+                                Radius.circular(14),
+                              ),
+                              gradient: LinearGradient(
+                                colors: <Color>[
+                                  Color(0xFFFBBF24),
+                                  Color(0xFFF97316),
+                                ],
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.wb_sunny_outlined,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(
+                                  mission.isCompleted
+                                      ? '오늘의 미션 완료'
+                                      : '오늘의 맞춤 미션',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  mission.title,
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.76),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.arrow_forward_rounded,
+                            color: Colors.white.withValues(alpha: 0.72),
+                          ),
+                        ],
                       ),
                     ),
-                    child: const Icon(
-                      Icons.wb_sunny_outlined,
-                      color: Colors.white,
-                    ),
                   ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        const Text(
-                          '오늘의 맞춤 미션',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '햇살과 함께 10분 걷기',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.76),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(
-                    Icons.arrow_forward_rounded,
-                    color: Colors.white.withValues(alpha: 0.72),
-                  ),
-                ],
-              ),
-            ),
-          ),
+                );
+              },
         ),
-        const SizedBox(height: 16),
         FutureBuilder<MyStats>(
           future: _myStatsFuture,
           builder: (BuildContext context, AsyncSnapshot<MyStats> snapshot) {
@@ -240,6 +261,22 @@ class _ProfilePageState extends State<ProfilePage> {
       return await repository.fetchMyStats();
     } catch (_) {
       return MyStats.previewMock();
+    }
+  }
+
+  Future<NudgeMission> _loadTodayMission() async {
+    if (widget.isPreviewMode) {
+      return NudgeMission.previewMock();
+    }
+
+    try {
+      final SupabaseClient client = Supabase.instance.client;
+      final NudgeRepository repository = NudgeRepository(
+        dataSource: SupabaseNudgeDataSource(client: client),
+      );
+      return await repository.fetchTodayMission();
+    } catch (_) {
+      return NudgeMission.previewMock();
     }
   }
 
