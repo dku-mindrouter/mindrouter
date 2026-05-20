@@ -210,7 +210,7 @@ class _SignedInHomePageState extends State<SignedInHomePage> {
       profileRepository: profileRepository,
     );
 
-    unawaited(_registerPushToken());
+    unawaited(_syncPushTokenIfAlreadyAllowed());
   }
 
   @override
@@ -219,13 +219,13 @@ class _SignedInHomePageState extends State<SignedInHomePage> {
     super.dispose();
   }
 
-  Future<void> _registerPushToken() async {
+  Future<void> _syncPushTokenIfAlreadyAllowed() async {
     try {
-      await _pushNotificationRegistrar.registerForUser(
+      await _pushNotificationRegistrar.syncTokenIfAuthorized(
         userId: widget.result.userId,
       );
     } catch (_) {
-      // Push token registration is best-effort and must not block app entry.
+      // Push token sync is best-effort and must not block app entry.
     }
   }
 
@@ -236,6 +236,7 @@ class _SignedInHomePageState extends State<SignedInHomePage> {
       nickname: widget.result.nickname,
       timezone: widget.result.timezone,
       nextRoute: widget.result.nextRoute,
+      notificationRegistrar: _pushNotificationRegistrar,
     );
   }
 }

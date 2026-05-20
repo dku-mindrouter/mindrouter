@@ -2,21 +2,37 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../../auth/data/push_notification_registrar.dart';
 import '../../../shared/widgets/app_panel_card.dart';
 
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key, required this.onBack});
+  const SettingsPage({
+    super.key,
+    required this.onBack,
+    required this.userId,
+    this.notificationRegistrar,
+  });
 
   final VoidCallback onBack;
+  final String userId;
+  final PushNotificationRegistrar? notificationRegistrar;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  bool _pushEnabled = false;
+  bool _isLoadingPushPermission = true;
   bool _nightStarEnabled = true;
   bool _morningMissionEnabled = true;
   bool _comfortArrivalEnabled = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPushPermissionState();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,6 +81,16 @@ class _SettingsPageState extends State<SettingsPage> {
               borderRadius: 28,
               child: Column(
                 children: <Widget>[
+                  _NotificationSettingTile(
+                    icon: Icons.notifications_active_outlined,
+                    iconColor: const Color(0xFF38BDF8),
+                    title: '푸시 알림 받기',
+                    description: _pushPermissionDescription,
+                    value: _pushEnabled,
+                    isBusy: _isLoadingPushPermission,
+                    onChanged: _handlePushPermissionChanged,
+                  ),
+                  const _SettingsDivider(),
                   _NotificationSettingTile(
                     icon: Icons.dark_mode_outlined,
                     iconColor: const Color(0xFF7C83FF),
@@ -180,6 +206,85 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
     );
   }
+
+  String get _pushPermissionDescription {
+    if (_isLoadingPushPermission) {
+      return '알림 권한 상태를 확인하고 있어요';
+    }
+    if (_pushEnabled) {
+      return '리액션과 편지 도착 알림을 받을 수 있어요';
+    }
+    return '켜면 기기 권한 요청 후 알림을 받을 수 있어요';
+  }
+
+  Future<void> _loadPushPermissionState() async {
+    final PushNotificationRegistrar? registrar = widget.notificationRegistrar;
+    if (registrar == null) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _pushEnabled = false;
+        _isLoadingPushPermission = false;
+      });
+      return;
+    }
+
+    final bool isGranted = await registrar.isEnabled();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _pushEnabled = isGranted;
+      _isLoadingPushPermission = false;
+    });
+  }
+
+  Future<void> _handlePushPermissionChanged(bool value) async {
+    final PushNotificationRegistrar? registrar = widget.notificationRegistrar;
+    if (registrar == null || _isLoadingPushPermission) {
+      return;
+    }
+
+    setState(() {
+      _isLoadingPushPermission = true;
+    });
+
+    try {
+      if (value) {
+        final bool isGranted = await registrar
+            .requestPermissionAndRegisterForUser(userId: widget.userId);
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _pushEnabled = isGranted;
+        });
+        if (!isGranted) {
+          _showPlaceholder('기기 알림 권한이 꺼져 있어요. 시스템 설정에서 알림을 허용해 주세요.');
+        }
+      } else {
+        await registrar.disableForUser(userId: widget.userId);
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _pushEnabled = false;
+        });
+      }
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      _showPlaceholder('알림 설정을 변경하지 못했어요. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingPushPermission = false;
+        });
+      }
+    }
+  }
 }
 
 class _RoundIconButton extends StatelessWidget {
@@ -250,6 +355,7 @@ class _NotificationSettingTile extends StatelessWidget {
     required this.description,
     required this.value,
     required this.onChanged,
+    this.isBusy = false,
     this.timeLabel,
   });
 
@@ -260,6 +366,7 @@ class _NotificationSettingTile extends StatelessWidget {
   final String? timeLabel;
   final bool value;
   final ValueChanged<bool> onChanged;
+  final bool isBusy;
 
   @override
   Widget build(BuildContext context) {
@@ -298,7 +405,17 @@ class _NotificationSettingTile extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: <Widget>[
-              _SettingsSwitch(value: value, onChanged: onChanged),
+              if (isBusy)
+                const SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Color(0xFF818CF8),
+                  ),
+                )
+              else
+                _SettingsSwitch(value: value, onChanged: onChanged),
               if (timeLabel != null) ...<Widget>[
                 const SizedBox(height: 8),
                 _TimePill(label: timeLabel!),

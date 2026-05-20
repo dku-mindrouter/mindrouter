@@ -1,4 +1,4 @@
-﻿import '../domain/auth_status.dart';
+import '../domain/auth_status.dart';
 
 abstract class AuthDataSource {
   Stream<AuthStatus> authStateChanges();
@@ -17,6 +17,6 @@ abstract class AuthDataSource {
 
   Future<void> updatePushToken({
     required String userId,
-    required String pushToken,
+    required String? pushToken,
   });
 }

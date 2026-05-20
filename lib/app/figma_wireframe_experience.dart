@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../pages/auth/data/push_notification_registrar.dart';
 import '../pages/comfort/presentation/comfort_page.dart';
 import '../pages/constellation/presentation/constellation_page.dart';
 import '../pages/emotion/presentation/emotion_home_page.dart';
@@ -18,6 +19,7 @@ class FigmaWireframeExperience extends StatefulWidget {
     required this.timezone,
     required this.nextRoute,
     this.previewMessage,
+    this.notificationRegistrar,
   });
 
   final String userId;
@@ -25,6 +27,7 @@ class FigmaWireframeExperience extends StatefulWidget {
   final String timezone;
   final String nextRoute;
   final String? previewMessage;
+  final PushNotificationRegistrar? notificationRegistrar;
 
   @override
   State<FigmaWireframeExperience> createState() =>
@@ -59,7 +62,10 @@ class _FigmaWireframeExperienceState extends State<FigmaWireframeExperience> {
     if (!hasCompletedOnboarding) {
       return _OnboardingFlow(
         previewMessage: widget.previewMessage,
-        onComplete: () async {
+        onComplete: ({required bool requestNotificationPermission}) async {
+          if (requestNotificationPermission) {
+            await _requestNotificationPermission();
+          }
           await _saveOnboardingState();
           if (!mounted) {
             return;
@@ -77,6 +83,7 @@ class _FigmaWireframeExperienceState extends State<FigmaWireframeExperience> {
       nextRoute: widget.nextRoute,
       userId: widget.userId,
       previewMessage: widget.previewMessage,
+      notificationRegistrar: widget.notificationRegistrar,
     );
   }
 
@@ -98,12 +105,28 @@ class _FigmaWireframeExperienceState extends State<FigmaWireframeExperience> {
     final SharedPreferences preferences = await SharedPreferences.getInstance();
     await preferences.setBool(_onboardingCompletedKey, true);
   }
+
+  Future<void> _requestNotificationPermission() async {
+    final PushNotificationRegistrar? registrar = widget.notificationRegistrar;
+    if (registrar == null || widget.previewMessage != null) {
+      return;
+    }
+
+    try {
+      await registrar.requestPermissionAndRegisterForUser(
+        userId: widget.userId,
+      );
+    } catch (_) {
+      // Permission and token registration must not block onboarding completion.
+    }
+  }
 }
 
 class _OnboardingFlow extends StatefulWidget {
   const _OnboardingFlow({required this.onComplete, this.previewMessage});
 
-  final VoidCallback onComplete;
+  final Future<void> Function({required bool requestNotificationPermission})
+  onComplete;
   final String? previewMessage;
 
   @override
@@ -112,6 +135,7 @@ class _OnboardingFlow extends StatefulWidget {
 
 class _OnboardingFlowState extends State<_OnboardingFlow> {
   int _step = 0;
+  bool _isCompleting = false;
 
   @override
   Widget build(BuildContext context) {
@@ -208,7 +232,9 @@ class _OnboardingFlowState extends State<_OnboardingFlow> {
                         SizedBox(
                           width: double.infinity,
                           child: FilledButton(
-                            onPressed: _handlePrimaryAction,
+                            onPressed: _isCompleting
+                                ? null
+                                : _handlePrimaryAction,
                             style: FilledButton.styleFrom(
                               backgroundColor: const Color(0xFF6366F1),
                               foregroundColor: Colors.white,
@@ -232,7 +258,11 @@ class _OnboardingFlowState extends State<_OnboardingFlow> {
                         ),
                         if (_step == _steps.length - 1)
                           TextButton(
-                            onPressed: widget.onComplete,
+                            onPressed: _isCompleting
+                                ? null
+                                : () => _complete(
+                                    requestNotificationPermission: false,
+                                  ),
                             child: Text(
                               '나중에 하기',
                               style: TextStyle(
@@ -263,7 +293,19 @@ class _OnboardingFlowState extends State<_OnboardingFlow> {
       return;
     }
 
-    widget.onComplete();
+    _complete(requestNotificationPermission: true);
+  }
+
+  Future<void> _complete({required bool requestNotificationPermission}) async {
+    if (_isCompleting) {
+      return;
+    }
+    setState(() {
+      _isCompleting = true;
+    });
+    await widget.onComplete(
+      requestNotificationPermission: requestNotificationPermission,
+    );
   }
 }
 
@@ -323,6 +365,7 @@ class _MindRouterShell extends StatefulWidget {
     required this.nextRoute,
     required this.userId,
     this.previewMessage,
+    this.notificationRegistrar,
   });
 
   final String nickname;
@@ -330,6 +373,7 @@ class _MindRouterShell extends StatefulWidget {
   final String nextRoute;
   final String userId;
   final String? previewMessage;
+  final PushNotificationRegistrar? notificationRegistrar;
 
   @override
   State<_MindRouterShell> createState() => _MindRouterShellState();
@@ -343,7 +387,11 @@ class _MindRouterShellState extends State<_MindRouterShell> {
   @override
   Widget build(BuildContext context) {
     final Widget profilePage = switch (_profileSubPage) {
-      _ProfileSubPage.settings => SettingsPage(onBack: _closeProfileSubPage),
+      _ProfileSubPage.settings => SettingsPage(
+        onBack: _closeProfileSubPage,
+        userId: widget.userId,
+        notificationRegistrar: widget.notificationRegistrar,
+      ),
       _ProfileSubPage.todayMission => TodayMissionPage(
         onBack: _closeProfileSubPage,
         isPreviewMode: widget.previewMessage != null,

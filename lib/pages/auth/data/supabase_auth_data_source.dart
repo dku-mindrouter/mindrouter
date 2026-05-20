@@ -63,7 +63,7 @@ class SupabaseAuthDataSource implements AuthDataSource {
   @override
   Future<void> updatePushToken({
     required String userId,
-    required String pushToken,
+    required String? pushToken,
   }) async {
     await _client
         .from('profiles')
