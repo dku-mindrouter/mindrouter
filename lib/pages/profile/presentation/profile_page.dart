@@ -22,6 +22,7 @@ class ProfilePage extends StatefulWidget {
     required this.userId,
     required this.onOpenSettings,
     required this.onOpenMission,
+    required this.onOpenMyStars,
     required this.isPreviewMode,
     required this.refreshTick,
   });
@@ -32,6 +33,7 @@ class ProfilePage extends StatefulWidget {
   final String userId;
   final VoidCallback onOpenSettings;
   final VoidCallback onOpenMission;
+  final VoidCallback onOpenMyStars;
   final bool isPreviewMode;
   final int refreshTick;
 
@@ -123,6 +125,13 @@ class _ProfilePageState extends State<ProfilePage> {
                   return _TodayStarCardContent(preview: preview);
                 },
           ),
+        ),
+        const SizedBox(height: 16),
+        _ProfileActionCard(
+          icon: Icons.auto_awesome_mosaic_outlined,
+          title: '내가 띄운 별 모아보기',
+          subtitle: '내가 남긴 감정 글과 받은 리액션을 확인하기',
+          onTap: widget.onOpenMyStars,
         ),
         const SizedBox(height: 16),
         FutureBuilder<NudgeMission>(
@@ -543,6 +552,75 @@ class _ProfileIconButton extends StatelessWidget {
             border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           ),
           child: Icon(icon, color: Colors.white.withValues(alpha: 0.82)),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileActionCard extends StatelessWidget {
+  const _ProfileActionCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(28),
+      child: AppPanelCard(
+        padding: const EdgeInsets.all(20),
+        backgroundColor: const Color(0x801C1E34),
+        borderColor: const Color(0x336366F1),
+        borderRadius: 28,
+        child: Row(
+          children: <Widget>[
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: const Color(0xFF818CF8).withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: const Color(0xFFC7D2FE)),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.58),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_rounded,
+              color: Colors.white.withValues(alpha: 0.62),
+            ),
+          ],
         ),
       ),
     );

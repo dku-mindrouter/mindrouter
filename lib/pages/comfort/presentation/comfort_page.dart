@@ -20,14 +20,21 @@ class _ComfortPageState extends State<ComfortPage> {
     dataSource: SupabaseComfortDataSource(client: Supabase.instance.client),
   );
 
+  _ComfortView _view = _ComfortView.notifications;
   late Future<List<ComfortNotification>> _future = _fetchNotifications();
+  late Future<List<ComfortLetter>> _lettersFuture = _fetchReceivedLetters();
 
   @override
   Widget build(BuildContext context) {
+    if (_view == _ComfortView.letters) {
+      return _buildLetterInbox();
+    }
+
     return RefreshIndicator(
       onRefresh: () async {
         setState(() {
           _future = _fetchNotifications();
+          _lettersFuture = _fetchReceivedLetters();
         });
         await _future;
       },
@@ -49,7 +56,7 @@ class _ComfortPageState extends State<ComfortPage> {
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(24, 16, 24, 120),
                   children: <Widget>[
-                    const _Header(),
+                    _Header(onOpenLetters: _openLetterInbox),
                     const SizedBox(height: 24),
                     AppPanelCard(
                       backgroundColor: Colors.white.withValues(alpha: 0.05),
@@ -71,7 +78,7 @@ class _ComfortPageState extends State<ComfortPage> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(24, 16, 24, 120),
                 children: <Widget>[
-                  const _Header(),
+                  _Header(onOpenLetters: _openLetterInbox),
                   const SizedBox(height: 24),
                   if (items.isEmpty)
                     AppPanelCard(
@@ -104,8 +111,119 @@ class _ComfortPageState extends State<ComfortPage> {
     );
   }
 
+  Widget _buildLetterInbox() {
+    return RefreshIndicator(
+      onRefresh: () async {
+        setState(() {
+          _lettersFuture = _fetchReceivedLetters();
+        });
+        await _lettersFuture;
+      },
+      child: FutureBuilder<List<ComfortLetter>>(
+        future: _lettersFuture,
+        builder:
+            (
+              BuildContext context,
+              AsyncSnapshot<List<ComfortLetter>> snapshot,
+            ) {
+              final List<Widget> children = <Widget>[
+                _SubPageHeader(title: '받은 편지함', onBack: _closeLetterInbox),
+                const SizedBox(height: 12),
+                Text(
+                  '하루 뒤 도착한 익명 편지를 모아볼 수 있어요.',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: Colors.white.withValues(alpha: 0.64),
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ];
+
+              if (snapshot.connectionState != ConnectionState.done) {
+                children.add(
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.only(top: 80),
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF818CF8),
+                      ),
+                    ),
+                  ),
+                );
+              } else if (snapshot.hasError) {
+                children.add(
+                  AppPanelCard(
+                    backgroundColor: Colors.white.withValues(alpha: 0.05),
+                    borderColor: Colors.white.withValues(alpha: 0.06),
+                    child: Text(
+                      _mapErrorToMessage(snapshot.error),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.82),
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                );
+              } else {
+                final List<ComfortLetter> letters = snapshot.data ?? const [];
+                if (letters.isEmpty) {
+                  children.add(
+                    AppPanelCard(
+                      backgroundColor: Colors.white.withValues(alpha: 0.05),
+                      borderColor: Colors.white.withValues(alpha: 0.06),
+                      child: Text(
+                        '아직 도착한 편지가 없어요. 편지가 도착하면 이곳에서 다시 읽을 수 있어요.',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.72),
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                  );
+                } else {
+                  children.addAll(
+                    letters.map(
+                      (ComfortLetter letter) => Padding(
+                        padding: const EdgeInsets.only(bottom: 14),
+                        child: _LetterCard(
+                          letter: letter,
+                          onTap: () => _openLetter(letter.id),
+                        ),
+                      ),
+                    ),
+                  );
+                }
+              }
+
+              return ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 120),
+                children: children,
+              );
+            },
+      ),
+    );
+  }
+
   Future<List<ComfortNotification>> _fetchNotifications() {
     return _repository.fetchComfortNotifications();
+  }
+
+  Future<List<ComfortLetter>> _fetchReceivedLetters() {
+    return _repository.fetchReceivedLetters();
+  }
+
+  void _openLetterInbox() {
+    setState(() {
+      _view = _ComfortView.letters;
+      _lettersFuture = _fetchReceivedLetters();
+    });
+  }
+
+  void _closeLetterInbox() {
+    setState(() {
+      _view = _ComfortView.notifications;
+      _future = _fetchNotifications();
+    });
   }
 
   Future<void> _openLetter(String letterId) async {
@@ -125,6 +243,7 @@ class _ComfortPageState extends State<ComfortPage> {
       }
       setState(() {
         _future = _fetchNotifications();
+        _lettersFuture = _fetchReceivedLetters();
       });
     } catch (error) {
       if (!mounted) {
@@ -151,8 +270,12 @@ class _ComfortPageState extends State<ComfortPage> {
   }
 }
 
+enum _ComfortView { notifications, letters }
+
 class _Header extends StatelessWidget {
-  const _Header();
+  const _Header({required this.onOpenLetters});
+
+  final VoidCallback onOpenLetters;
 
   @override
   Widget build(BuildContext context) {
@@ -171,6 +294,100 @@ class _Header extends StatelessWidget {
           '내 별에 도착한 실제 리액션과 위로를 이곳에서 확인할 수 있어요.',
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
             color: Colors.white.withValues(alpha: 0.64),
+          ),
+        ),
+        const SizedBox(height: 16),
+        InkWell(
+          onTap: onOpenLetters,
+          borderRadius: BorderRadius.circular(22),
+          child: AppPanelCard(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            backgroundColor: const Color(0x14165DFF),
+            borderColor: const Color(0x33818CF8),
+            child: Row(
+              children: <Widget>[
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFF818CF8).withValues(alpha: 0.16),
+                  ),
+                  child: const Icon(
+                    Icons.mail_outline_rounded,
+                    color: Color(0xFFC7D2FE),
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      const Text(
+                        '받은 편지함',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '도착한 익명 편지를 다시 읽기',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.56),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_rounded,
+                  color: Colors.white.withValues(alpha: 0.62),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SubPageHeader extends StatelessWidget {
+  const _SubPageHeader({required this.title, required this.onBack});
+
+  final String title;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        InkWell(
+          onTap: onBack,
+          borderRadius: BorderRadius.circular(18),
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            ),
+            child: const Icon(Icons.arrow_back, color: Colors.white),
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Text(
+            title,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
       ],
@@ -305,6 +522,97 @@ class _LetterDialog extends StatelessWidget {
           child: const Text('닫기'),
         ),
       ],
+    );
+  }
+}
+
+class _LetterCard extends StatelessWidget {
+  const _LetterCard({required this.letter, required this.onTap});
+
+  final ComfortLetter letter;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isUnread = letter.openedAt == null;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(24),
+      child: AppPanelCard(
+        backgroundColor: Colors.white.withValues(alpha: 0.05),
+        borderColor: isUnread
+            ? const Color(0xFF818CF8).withValues(alpha: 0.34)
+            : Colors.white.withValues(alpha: 0.06),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF818CF8).withValues(alpha: 0.14),
+              ),
+              child: const Icon(
+                Icons.mail_outline_rounded,
+                color: Color(0xFFC7D2FE),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          isUnread ? '읽지 않은 익명 편지' : '익명 편지',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        _formatRelativeTime(letter.deliveredAt),
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.42),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '"${letter.starContent}" 별에 도착',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.48),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    letter.content,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.72),
+                      height: 1.45,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

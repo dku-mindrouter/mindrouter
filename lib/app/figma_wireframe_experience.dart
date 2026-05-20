@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../pages/comfort/presentation/comfort_page.dart';
 import '../pages/constellation/presentation/constellation_page.dart';
 import '../pages/emotion/presentation/emotion_home_page.dart';
+import '../pages/profile/presentation/my_stars_page.dart';
 import '../pages/profile/presentation/profile_page.dart';
 import '../pages/profile/presentation/today_mission_page.dart';
 import '../pages/settings/presentation/settings_page.dart';
@@ -347,6 +348,10 @@ class _MindRouterShellState extends State<_MindRouterShell> {
         onBack: _closeProfileSubPage,
         isPreviewMode: widget.previewMessage != null,
       ),
+      _ProfileSubPage.myStars => MyStarsPage(
+        onBack: _closeProfileSubPage,
+        isPreviewMode: widget.previewMessage != null,
+      ),
       _ProfileSubPage.profile => ProfilePage(
         nickname: widget.nickname,
         timezone: widget.timezone,
@@ -354,6 +359,7 @@ class _MindRouterShellState extends State<_MindRouterShell> {
         userId: widget.userId,
         onOpenSettings: _openSettings,
         onOpenMission: _openTodayMission,
+        onOpenMyStars: _openMyStars,
         isPreviewMode: widget.previewMessage != null,
         refreshTick: _profileRefreshTick,
       ),
@@ -471,6 +477,12 @@ class _MindRouterShellState extends State<_MindRouterShell> {
     });
   }
 
+  void _openMyStars() {
+    setState(() {
+      _profileSubPage = _ProfileSubPage.myStars;
+    });
+  }
+
   void _closeProfileSubPage() {
     setState(() {
       _profileSubPage = _ProfileSubPage.profile;
@@ -479,7 +491,7 @@ class _MindRouterShellState extends State<_MindRouterShell> {
   }
 }
 
-enum _ProfileSubPage { profile, settings, todayMission }
+enum _ProfileSubPage { profile, settings, todayMission, myStars }
 
 class _PreviewModeBanner extends StatelessWidget {
   const _PreviewModeBanner({required this.message});

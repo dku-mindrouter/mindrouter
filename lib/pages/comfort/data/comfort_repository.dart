@@ -58,6 +58,30 @@ class ComfortRepository {
     }
   }
 
+  Future<List<ComfortLetter>> fetchReceivedLetters({
+    int limit = 30,
+    int offset = 0,
+  }) async {
+    try {
+      return await withRetry(
+        task: () => executeWithErrorMapping<List<ComfortLetter>>(
+          action: () async {
+            final dynamic raw = await _dataSource.fetchReceivedLetters(
+              limit: limit,
+              offset: offset,
+            );
+            final List<Map<String, dynamic>> rows = _toRows(raw);
+            return rows.map(ComfortLetter.fromMap).toList(growable: false);
+          },
+        ),
+        maxRetryCount: 2,
+        shouldRetry: _shouldRetry,
+      );
+    } catch (error) {
+      throw mapToComfortException(error);
+    }
+  }
+
   ComfortException mapToComfortException(Object error) {
     if (error is MappedAppException) {
       return ComfortException(error.code, message: error.message);
@@ -73,10 +97,13 @@ class ComfortRepository {
 
   List<Map<String, dynamic>> _toRows(dynamic raw) {
     if (raw is List) {
-      return raw.whereType<Map<String, dynamic>>().toList(growable: false);
+      return raw
+          .whereType<Map>()
+          .map((Map row) => Map<String, dynamic>.from(row))
+          .toList(growable: false);
     }
-    if (raw is Map<String, dynamic>) {
-      return <Map<String, dynamic>>[raw];
+    if (raw is Map) {
+      return <Map<String, dynamic>>[Map<String, dynamic>.from(raw)];
     }
     return const <Map<String, dynamic>>[];
   }

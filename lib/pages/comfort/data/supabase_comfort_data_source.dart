@@ -17,6 +17,14 @@ class SupabaseComfortDataSource implements ComfortDataSource {
   }
 
   @override
+  Future<dynamic> fetchReceivedLetters({int limit = 30, int offset = 0}) {
+    return _client.rpc(
+      'get_received_letters',
+      params: <String, dynamic>{'p_limit': limit, 'p_offset': offset},
+    );
+  }
+
+  @override
   Future<dynamic> openLetter({required String letterId}) {
     return _client.rpc(
       'open_letter',
