@@ -71,6 +71,11 @@ Used from [lib/pages/emotion/data/supabase_emotion_data_source.dart](/Users/yuch
   - `group_name`
   - `priority`
   - `is_active`
+- Required active emotion tags:
+  - `평온함` / `group_name = calm`
+  - `행복함` / `group_name = happy`
+  - `기대감/활력` / `group_name = positive`
+  - `불안함`, `우울함`, `지침/무기력`, `예민함/짜증`
 - `create_star` RPC must accept:
   - `p_content`
   - `p_tag_ids`

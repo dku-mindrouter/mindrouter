@@ -1215,7 +1215,8 @@ class _TinyStar extends StatelessWidget {
 
 const Map<String, List<String>> _emotionTagAliases = <String, List<String>>{
   'lethargy': <String>['기대감/활력'],
-  'calm': <String>['평온함/잔잔함'],
+  'happy': <String>['행복함'],
+  'calm': <String>['평온함'],
   'depression': <String>['우울함'],
   'exhaustion': <String>['지침/무기력'],
   'anxiety': <String>['불안함'],
@@ -1232,11 +1233,19 @@ const List<_EmotionBubbleData> _emotionOptions = <_EmotionBubbleData>[
     subLabel: '움직일 힘이 있어',
   ),
   _EmotionBubbleData(
+    id: 'happy',
+    name: '#행복함',
+    color: Color(0xFFF0A83A),
+    left: 198,
+    top: 26,
+    subLabel: '좋은 기분이 올라와',
+  ),
+  _EmotionBubbleData(
     id: 'calm',
-    name: '#평온함/잔잔함',
+    name: '#평온함',
     color: Color(0xFF5FAFA0),
-    left: 188,
-    top: 84,
+    left: 184,
+    top: 104,
     subLabel: '천천히 숨 고르는 중',
   ),
   _EmotionBubbleData(
@@ -1252,7 +1261,7 @@ const List<_EmotionBubbleData> _emotionOptions = <_EmotionBubbleData>[
     name: '#지침/무기력',
     color: Color(0xFFC19752),
     left: 205,
-    top: 176,
+    top: 186,
     subLabel: '기운이 잘 안 나',
   ),
   _EmotionBubbleData(
@@ -1268,7 +1277,7 @@ const List<_EmotionBubbleData> _emotionOptions = <_EmotionBubbleData>[
     name: '#예민함/짜증',
     color: Color(0xFFB35C7B),
     left: 153,
-    top: 268,
+    top: 286,
     subLabel: '작은 일도 거슬려',
   ),
 ];

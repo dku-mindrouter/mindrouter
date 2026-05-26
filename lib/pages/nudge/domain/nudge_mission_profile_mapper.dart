@@ -38,6 +38,7 @@ String mapSelectedEmotionToMissionProfile({required String emotionGroup}) {
     'stable',
     'calm_recovery',
     '평온',
+    '평온함',
     '잔잔함',
     '안정',
   }.contains(normalized)) {

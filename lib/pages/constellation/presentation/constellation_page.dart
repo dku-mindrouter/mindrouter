@@ -2005,7 +2005,9 @@ const Map<String, String> _feedTagDisplayOverrides = <String, String>{
 
 const Map<String, Color> _feedTagColors = <String, Color>{
   '무기력': Color(0xFFB68355),
+  '평온함': Color(0xFF6FB1A9),
   '잔잔함': Color(0xFF6FB1A9),
+  '행복함': Color(0xFFF0A83A),
   '안도감': Color(0xFF6FB1A9),
   '공허함': Color(0xFF6F55B5),
   '이유 없이': Color(0xFF6F55B5),
@@ -2093,7 +2095,7 @@ final List<Star> _previewStars = <Star>[
     userId: 'preview-other-2',
     content: '조금 잔잔해진 밤이라 이 감각을 남겨두고 싶어요.',
     tagIds: const <int>[8],
-    tagNames: const <String>['잔잔함'],
+    tagNames: const <String>['평온함'],
     timeBucket: 'evening',
     reactionCount: 5,
     createdAt: DateTime(2026, 4, 11, 20, 16),

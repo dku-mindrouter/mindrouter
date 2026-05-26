@@ -276,6 +276,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 );
               },
         ),
+        const SizedBox(height: 16),
         FutureBuilder<MyStats>(
           future: _myStatsFuture,
           builder: (BuildContext context, AsyncSnapshot<MyStats> snapshot) {

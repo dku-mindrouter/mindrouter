@@ -35,6 +35,7 @@ const Map<int, String> _emotionTagDictionary = <int, String>{
   2: '우울함',
   3: '지침/무기력',
   4: '예민함/짜증',
-  5: '평온함/잔잔함',
+  5: '평온함',
   6: '기대감/활력',
+  11: '행복함',
 };

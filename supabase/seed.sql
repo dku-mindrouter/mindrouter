@@ -4,12 +4,13 @@ values
   (2, '우울함', 'negative', 90, true),
   (3, '지침/무기력', 'negative', 80, true),
   (4, '예민함/짜증', 'negative', 70, true),
-  (5, '평온함/잔잔함', 'calm', 60, true),
+  (5, '평온함', 'calm', 60, true),
   (6, '기대감/활력', 'positive', 50, true),
   (7, '공허함', 'legacy', 40, false),
   (8, '외로움', 'legacy', 30, false),
   (9, '번아웃', 'legacy', 20, false),
-  (10, '위로받고 싶음', 'legacy', 10, false)
+  (10, '위로받고 싶음', 'legacy', 10, false),
+  (11, '행복함', 'happy', 55, true)
 on conflict (id) do update
 set
   name_ko = excluded.name_ko,
