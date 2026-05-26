@@ -7,6 +7,7 @@ class ComfortGift {
     required this.title,
     required this.description,
     required this.status,
+    required this.imageUrl,
     required this.createdAt,
     required this.openedAt,
   });
@@ -18,6 +19,7 @@ class ComfortGift {
   final String title;
   final String description;
   final String status;
+  final String? imageUrl;
   final DateTime createdAt;
   final DateTime? openedAt;
 
@@ -30,9 +32,19 @@ class ComfortGift {
       title: map['title'] as String? ?? '커피 선물',
       description: map['description'] as String? ?? '',
       status: map['status'] as String? ?? 'reserved',
+      imageUrl: _asNullableString(map['image_url']),
       createdAt: _asDateTime(map['created_at']),
       openedAt: _asNullableDateTime(map['opened_at']),
     );
+  }
+
+  bool get hasImage => imageUrl != null && imageUrl!.isNotEmpty;
+
+  static String? _asNullableString(dynamic value) {
+    if (value is String && value.trim().isNotEmpty) {
+      return value.trim();
+    }
+    return null;
   }
 
   static DateTime _asDateTime(dynamic value) {

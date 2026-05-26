@@ -1,6 +1,8 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/constellation_repository.dart';
@@ -14,6 +16,7 @@ import '../../emotion/data/supabase_emotion_data_source.dart';
 import '../../emotion/domain/emotion_tag.dart';
 import '../../reaction/data/reaction_repository.dart';
 import '../../reaction/data/supabase_reaction_data_source.dart';
+import '../../reaction/domain/coffee_gift_image.dart';
 import '../../reaction/domain/reaction_error_message_mapper.dart';
 import '../../reaction/domain/reaction_exception.dart';
 import '../../reaction/domain/reaction_type.dart';
@@ -953,6 +956,14 @@ class _StarDetailPageState extends State<_StarDetailPage> {
       return;
     }
 
+    CoffeeGiftImage? coffeeGiftImage;
+    if (reactionType.code == 'WARM_COFFEE') {
+      coffeeGiftImage = await _showCoffeeGiftImagePicker();
+      if (!mounted || coffeeGiftImage == null) {
+        return;
+      }
+    }
+
     if (widget.isPreviewMode) {
       setState(() {
         final Set<int> updatedReactionTypeIds = <int>{
@@ -978,6 +989,7 @@ class _StarDetailPageState extends State<_StarDetailPage> {
       final SendReactionResult result = await _reactionRepository.sendReaction(
         starId: _star.starId,
         reactionTypeId: reactionType.id,
+        coffeeGiftImage: coffeeGiftImage,
       );
       if (!mounted) {
         return;
@@ -1072,6 +1084,15 @@ class _StarDetailPageState extends State<_StarDetailPage> {
       context: context,
       builder: (BuildContext dialogContext) {
         return const _LetterComposerDialog();
+      },
+    );
+  }
+
+  Future<CoffeeGiftImage?> _showCoffeeGiftImagePicker() {
+    return showDialog<CoffeeGiftImage>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return const _CoffeeGiftImageDialog();
       },
     );
   }
@@ -1630,6 +1651,188 @@ class _LetterComposerDialogState extends State<_LetterComposerDialog> {
         ),
       ],
     );
+  }
+}
+
+class _CoffeeGiftImageDialog extends StatefulWidget {
+  const _CoffeeGiftImageDialog();
+
+  @override
+  State<_CoffeeGiftImageDialog> createState() => _CoffeeGiftImageDialogState();
+}
+
+class _CoffeeGiftImageDialogState extends State<_CoffeeGiftImageDialog> {
+  static const int _maxImageBytes = 5 * 1024 * 1024;
+  final ImagePicker _picker = ImagePicker();
+
+  Uint8List? _imageBytes;
+  String _fileExtension = 'jpg';
+  String _contentType = 'image/jpeg';
+  String? _errorMessage;
+  bool _isPicking = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool canSend = _imageBytes != null && !_isPicking;
+
+    return AlertDialog(
+      backgroundColor: const Color(0xFF17182A),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      title: const Text(
+        '커피 사진 보내기',
+        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+      ),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              '커피와 함께 보낼 사진을 선택해 주세요.',
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.62)),
+            ),
+            const SizedBox(height: 16),
+            InkWell(
+              onTap: _isPicking ? null : _pickImage,
+              borderRadius: BorderRadius.circular(18),
+              child: Container(
+                width: double.infinity,
+                height: 220,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.08),
+                  ),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: _imageBytes == null
+                    ? Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: <Widget>[
+                          Icon(
+                            Icons.add_photo_alternate_outlined,
+                            color: Colors.white.withValues(alpha: 0.62),
+                            size: 38,
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            _isPicking ? '사진을 여는 중...' : '사진 선택',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.72),
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      )
+                    : Stack(
+                        fit: StackFit.expand,
+                        children: <Widget>[
+                          Image.memory(_imageBytes!, fit: BoxFit.cover),
+                          Positioned(
+                            right: 10,
+                            top: 10,
+                            child: IconButton.filledTonal(
+                              onPressed: _isPicking ? null : _pickImage,
+                              icon: const Icon(Icons.edit_rounded),
+                              tooltip: '사진 변경',
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+            if (_errorMessage != null) ...<Widget>[
+              const SizedBox(height: 10),
+              Text(
+                _errorMessage!,
+                style: const TextStyle(
+                  color: Color(0xFFFFB4B4),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: _isPicking ? null : () => Navigator.of(context).pop(),
+          child: Text(
+            '취소',
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.72)),
+          ),
+        ),
+        FilledButton(
+          onPressed: canSend
+              ? () => Navigator.of(context).pop(
+                  CoffeeGiftImage(
+                    bytes: _imageBytes!,
+                    fileExtension: _fileExtension,
+                    contentType: _contentType,
+                  ),
+                )
+              : null,
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFFC08457),
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('커피 보내기'),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _pickImage() async {
+    setState(() {
+      _isPicking = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1600,
+        imageQuality: 86,
+      );
+      if (!mounted) {
+        return;
+      }
+      if (pickedFile == null) {
+        setState(() {
+          _isPicking = false;
+        });
+        return;
+      }
+
+      final Uint8List bytes = await pickedFile.readAsBytes();
+      if (!mounted) {
+        return;
+      }
+      if (bytes.length > _maxImageBytes) {
+        setState(() {
+          _isPicking = false;
+          _errorMessage = '5MB 이하의 사진만 보낼 수 있어요.';
+        });
+        return;
+      }
+
+      setState(() {
+        _imageBytes = bytes;
+        _fileExtension = _imageExtensionFor(pickedFile);
+        _contentType = _imageContentTypeFor(_fileExtension);
+        _isPicking = false;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isPicking = false;
+        _errorMessage = '사진을 선택하지 못했어요. 다시 시도해 주세요.';
+      });
+    }
   }
 }
 
@@ -2351,6 +2554,25 @@ String _feedDisplayTagLabel(String label) {
 
 String _normalizeEmotionLabel(String label) {
   return label.replaceAll('#', '').trim().toLowerCase();
+}
+
+String _imageExtensionFor(XFile file) {
+  final String fileName = file.name.toLowerCase();
+  if (fileName.endsWith('.png')) {
+    return 'png';
+  }
+  if (fileName.endsWith('.webp')) {
+    return 'webp';
+  }
+  return 'jpg';
+}
+
+String _imageContentTypeFor(String extension) {
+  return switch (extension) {
+    'png' => 'image/png',
+    'webp' => 'image/webp',
+    _ => 'image/jpeg',
+  };
 }
 
 Color? _colorForTagLabel(String label) {

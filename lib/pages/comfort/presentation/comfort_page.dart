@@ -607,6 +607,35 @@ class _GiftDialog extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 12),
+                  if (gift.hasImage) ...<Widget>[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: AspectRatio(
+                        aspectRatio: 4 / 3,
+                        child: Image.network(
+                          gift.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder:
+                              (
+                                BuildContext context,
+                                Object error,
+                                StackTrace? stackTrace,
+                              ) => Container(
+                                color: Colors.white.withValues(alpha: 0.06),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  '사진을 불러오지 못했어요.',
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.54),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
                   Text(
                     gift.description,
                     style: TextStyle(
@@ -919,16 +948,28 @@ class _GiftCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Container(
-              width: 46,
-              height: 46,
+              width: 52,
+              height: 52,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: const Color(0xFFC08457).withValues(alpha: 0.16),
               ),
-              child: const Icon(
-                Icons.coffee_outlined,
-                color: Color(0xFFF8C58B),
-              ),
+              clipBehavior: Clip.antiAlias,
+              child: gift.hasImage
+                  ? Image.network(
+                      gift.imageUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder:
+                          (
+                            BuildContext context,
+                            Object error,
+                            StackTrace? stackTrace,
+                          ) => const Icon(
+                            Icons.coffee_outlined,
+                            color: Color(0xFFF8C58B),
+                          ),
+                    )
+                  : const Icon(Icons.coffee_outlined, color: Color(0xFFF8C58B)),
             ),
             const SizedBox(width: 14),
             Expanded(

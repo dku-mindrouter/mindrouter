@@ -1,6 +1,9 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mindfulconnect/pages/reaction/data/reaction_data_source.dart';
 import 'package:mindfulconnect/pages/reaction/data/reaction_repository.dart';
+import 'package:mindfulconnect/pages/reaction/domain/coffee_gift_image.dart';
 import 'package:mindfulconnect/pages/reaction/domain/reaction_exception.dart';
 import 'package:mindfulconnect/shared/features/data/app_error.dart';
 
@@ -11,6 +14,7 @@ class FakeReactionDataSource implements ReactionDataSource {
 
   String? lastStarId;
   int? lastReactionTypeId;
+  String? lastGiftImageUrl;
 
   Object? typesError;
   Object? sendError;
@@ -52,14 +56,33 @@ class FakeReactionDataSource implements ReactionDataSource {
   Future<dynamic> sendReaction({
     required String starId,
     required int reactionTypeId,
+    String? giftImageUrl,
   }) async {
     sendReactionCallCount += 1;
     lastStarId = starId;
     lastReactionTypeId = reactionTypeId;
+    lastGiftImageUrl = giftImageUrl;
     if (sendError != null) {
       throw sendError!;
     }
     return sendResponse;
+  }
+
+  @override
+  Future<String> uploadCoffeeGiftImage({
+    required Uint8List bytes,
+    required String fileExtension,
+    required String contentType,
+  }) async {
+    return 'https://example.com/coffee-photo.$fileExtension';
+  }
+
+  @override
+  Future<dynamic> sendLetter({
+    required String starId,
+    required String content,
+  }) async {
+    throw UnimplementedError();
   }
 
   @override
@@ -70,6 +93,9 @@ class FakeReactionDataSource implements ReactionDataSource {
     }
     return quotaResponse;
   }
+
+  @override
+  Future<void> notifyReactionPush({required String reactionId}) async {}
 }
 
 void main() {
@@ -101,6 +127,25 @@ void main() {
       expect(result.reactionCount, 4);
       expect(dataSource.lastStarId, '11111111-1111-1111-1111-111111111111');
       expect(dataSource.lastReactionTypeId, 1);
+    });
+
+    test('sendReaction uploads coffee gift image before rpc', () async {
+      final result = await repository.sendReaction(
+        starId: '11111111-1111-1111-1111-111111111111',
+        reactionTypeId: 5,
+        coffeeGiftImage: CoffeeGiftImage(
+          bytes: Uint8List.fromList(<int>[1, 2, 3]),
+          fileExtension: 'jpg',
+          contentType: 'image/jpeg',
+        ),
+      );
+
+      expect(result.reactionId, '33333333-3333-3333-3333-333333333333');
+      expect(dataSource.lastReactionTypeId, 5);
+      expect(
+        dataSource.lastGiftImageUrl,
+        'https://example.com/coffee-photo.jpg',
+      );
     });
 
     test('fetchReactionQuota maps quota and remaining', () async {

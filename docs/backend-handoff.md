@@ -98,6 +98,12 @@ Used from [lib/pages/constellation/data/supabase_constellation_data_source.dart]
 - `star_views` upsert must work with:
   - `viewer_user_id`
   - `star_id`
+- `send_reaction` RPC must accept optional coffee gift image:
+  - `p_gift_image_url`
+- Coffee gift images use Supabase Storage bucket:
+  - `coffee-gift-images`
+- `get_received_gifts` / `open_gift` must return:
+  - `image_url`
   - `seen_at`
 
 ### Reaction

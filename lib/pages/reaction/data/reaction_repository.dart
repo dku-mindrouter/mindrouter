@@ -4,6 +4,7 @@ import '../../../shared/features/data/app_error.dart';
 import '../../../shared/features/data/execute_with_error_mapping.dart';
 import '../../../shared/features/data/with_retry.dart';
 import '../domain/daily_quota.dart';
+import '../domain/coffee_gift_image.dart';
 import '../domain/reaction_exception.dart';
 import '../domain/reaction_type.dart';
 import '../domain/send_letter_result.dart';
@@ -37,14 +38,23 @@ class ReactionRepository {
   Future<SendReactionResult> sendReaction({
     required String starId,
     required int reactionTypeId,
+    CoffeeGiftImage? coffeeGiftImage,
   }) async {
     try {
       final SendReactionResult result = await withRetry(
         task: () => executeWithErrorMapping<SendReactionResult>(
           action: () async {
+            final String? giftImageUrl = coffeeGiftImage == null
+                ? null
+                : await _dataSource.uploadCoffeeGiftImage(
+                    bytes: coffeeGiftImage.bytes,
+                    fileExtension: coffeeGiftImage.fileExtension,
+                    contentType: coffeeGiftImage.contentType,
+                  );
             final dynamic raw = await _dataSource.sendReaction(
               starId: starId,
               reactionTypeId: reactionTypeId,
+              giftImageUrl: giftImageUrl,
             );
             final Map<String, dynamic> row = _firstRow(raw);
             return SendReactionResult.fromMap(row);
