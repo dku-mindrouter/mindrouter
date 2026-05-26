@@ -11,6 +11,7 @@ import '../data/push_notification_registrar.dart';
 import '../data/supabase_auth_data_source.dart';
 import '../domain/auth_route_policy.dart';
 import '../domain/auth_validators.dart';
+import 'app_loading_page.dart';
 import 'boot_status_page.dart';
 
 class AppEntryPage extends StatelessWidget {
@@ -67,17 +68,7 @@ class _AuthGatePageState extends State<AuthGatePage> {
       future: _future,
       builder: (BuildContext context, AsyncSnapshot<AuthGateResult> snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const BootStatusPage(
-            title: 'MindfulConnect',
-            headline: '인증 진입 흐름을 준비하고 있습니다.',
-            description: 'Supabase 연결, 익명 로그인, 기본 프로필 확인을 순서대로 진행하는 중입니다.',
-            primaryLabel: 'Connecting',
-            detailItems: <String>[
-              'Supabase 세션 확인',
-              '익명 로그인 보장',
-              'profiles 기본 데이터 확인',
-            ],
-          );
+          return const AppLoadingPage(message: '세션과 프로필을 확인하고 있어요.');
         }
 
         if (snapshot.hasError) {
