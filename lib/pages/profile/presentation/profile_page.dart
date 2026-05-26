@@ -140,37 +140,65 @@ class _ProfilePageState extends State<ProfilePage> {
               (BuildContext context, AsyncSnapshot<NudgeMission> snapshot) {
                 final NudgeMission mission =
                     snapshot.data ?? NudgeMission.previewMock();
+                final bool isCompleted = mission.isCompleted;
+                final bool isStarted = mission.isStarted;
+                final String stateHeadline = isCompleted
+                    ? '오늘의 미션 완료'
+                    : isStarted
+                    ? '오늘의 맞춤 미션 진행 중'
+                    : '오늘의 맞춤 미션';
+                final String stateBadge = isCompleted
+                    ? '완료됨'
+                    : isStarted
+                    ? '진행 중'
+                    : '시작 전';
+                final Color badgeColor = isCompleted
+                    ? const Color(0xFFFBBF24)
+                    : isStarted
+                    ? const Color(0xFFF59E0B)
+                    : const Color(0xFF818CF8);
                 return Semantics(
                   button: true,
-                  label: '오늘의 맞춤 미션, ${mission.title}',
+                  label: '$stateHeadline, ${mission.title}',
                   child: InkWell(
                     onTap: widget.onOpenMission,
                     borderRadius: BorderRadius.circular(28),
                     child: AppPanelCard(
                       padding: const EdgeInsets.all(20),
-                      gradient: const LinearGradient(
-                        colors: <Color>[Color(0xCC1C1E34), Color(0xCC2A2D4A)],
+                      gradient: LinearGradient(
+                        colors: <Color>[
+                          isCompleted
+                              ? const Color(0xDD252841)
+                              : const Color(0xCC1C1E34),
+                          isCompleted
+                              ? const Color(0xDD33375A)
+                              : const Color(0xCC2A2D4A),
+                        ],
                       ),
-                      borderColor: const Color(0x336366F1),
+                      borderColor: badgeColor.withValues(alpha: 0.36),
                       borderRadius: 28,
                       child: Row(
                         children: <Widget>[
                           Container(
                             width: 42,
                             height: 42,
-                            decoration: const BoxDecoration(
+                            decoration: BoxDecoration(
                               borderRadius: BorderRadius.all(
                                 Radius.circular(14),
                               ),
                               gradient: LinearGradient(
                                 colors: <Color>[
                                   Color(0xFFFBBF24),
-                                  Color(0xFFF97316),
+                                  isCompleted
+                                      ? Color(0xFFD97706)
+                                      : Color(0xFFF97316),
                                 ],
                               ),
                             ),
-                            child: const Icon(
-                              Icons.wb_sunny_outlined,
+                            child: Icon(
+                              isCompleted
+                                  ? Icons.check_rounded
+                                  : Icons.wb_sunny_outlined,
                               color: Colors.white,
                             ),
                           ),
@@ -180,9 +208,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: <Widget>[
                                 Text(
-                                  mission.isCompleted
-                                      ? '오늘의 미션 완료'
-                                      : '오늘의 맞춤 미션',
+                                  stateHeadline,
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w700,
@@ -197,12 +223,51 @@ class _ProfilePageState extends State<ProfilePage> {
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: badgeColor.withValues(alpha: 0.14),
+                                    borderRadius: BorderRadius.circular(999),
+                                    border: Border.all(
+                                      color: badgeColor.withValues(alpha: 0.32),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: <Widget>[
+                                      Icon(
+                                        isCompleted
+                                            ? Icons.check_circle_rounded
+                                            : isStarted
+                                            ? Icons.timelapse_rounded
+                                            : Icons.flag_rounded,
+                                        color: badgeColor,
+                                        size: 13,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        stateBadge,
+                                        style: TextStyle(
+                                          color: badgeColor,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ],
                             ),
                           ),
                           Icon(
                             Icons.arrow_forward_rounded,
-                            color: Colors.white.withValues(alpha: 0.72),
+                            color: isCompleted
+                                ? badgeColor
+                                : Colors.white.withValues(alpha: 0.72),
                           ),
                         ],
                       ),
