@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-class AppLoadingPage extends StatelessWidget {
+class AppLoadingPage extends StatefulWidget {
   const AppLoadingPage({
     super.key,
     this.title = 'MindfulConnect',
@@ -9,6 +9,33 @@ class AppLoadingPage extends StatelessWidget {
 
   final String title;
   final String message;
+
+  @override
+  State<AppLoadingPage> createState() => _AppLoadingPageState();
+}
+
+class _AppLoadingPageState extends State<AppLoadingPage>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2200),
+  )..repeat(reverse: true);
+
+  late final Animation<double> _scale = Tween<double>(
+    begin: 0.965,
+    end: 1,
+  ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+
+  late final Animation<double> _opacity = Tween<double>(
+    begin: 0.82,
+    end: 1,
+  ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,33 +63,40 @@ class AppLoadingPage extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  Container(
-                    width: 84,
-                    height: 84,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(28),
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: <Color>[Color(0xFFFFB84D), Color(0xFFFF7A14)],
-                      ),
-                      boxShadow: const <BoxShadow>[
-                        BoxShadow(
-                          color: Color(0x66FF7A14),
-                          blurRadius: 32,
-                          offset: Offset(0, 16),
+                  AnimatedBuilder(
+                    animation: _controller,
+                    builder: (BuildContext context, Widget? child) {
+                      return Opacity(
+                        opacity: _opacity.value,
+                        child: Transform.scale(
+                          scale: _scale.value,
+                          child: child,
                         ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.auto_awesome_rounded,
-                      color: Colors.white,
-                      size: 42,
+                      );
+                    },
+                    child: Container(
+                      width: 132,
+                      height: 132,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        boxShadow: <BoxShadow>[
+                          BoxShadow(
+                            color: Color(0x55FF9A2F),
+                            blurRadius: 48,
+                            spreadRadius: 3,
+                          ),
+                        ],
+                      ),
+                      child: Image.asset(
+                        'assets/images/loading_compass_star.png',
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.high,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 28),
                   Text(
-                    title,
+                    widget.title,
                     textAlign: TextAlign.center,
                     style: theme.textTheme.headlineSmall?.copyWith(
                       color: Colors.white,
@@ -72,7 +106,7 @@ class AppLoadingPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    message,
+                    widget.message,
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodyLarge?.copyWith(
                       color: Colors.white.withValues(alpha: 0.72),

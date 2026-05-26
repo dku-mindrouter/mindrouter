@@ -5,7 +5,9 @@
             <solid android:color="#0A0B14" />
         </shape>
     </item>
-    <item
-        android:drawable="@drawable/launch_icon"
-        android:gravity="center" />
+    <item>
+        <bitmap
+            android:gravity="center"
+            android:src="@mipmap/splash_logo" />
+    </item>
 </layer-list>
