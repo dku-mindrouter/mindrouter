@@ -5,10 +5,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../app/app_bootstrap.dart';
 import '../../../app/figma_wireframe_experience.dart';
+import '../../../shared/features/data/app_error.dart';
 import '../data/auth_repository.dart';
 import '../data/profile_repository.dart';
 import '../data/push_notification_registrar.dart';
 import '../data/supabase_auth_data_source.dart';
+import '../domain/auth_exception.dart' as domain_auth;
 import '../domain/auth_route_policy.dart';
 import '../domain/auth_validators.dart';
 import 'app_loading_page.dart';
@@ -60,7 +62,16 @@ class AuthGatePage extends StatefulWidget {
 }
 
 class _AuthGatePageState extends State<AuthGatePage> {
-  late final Future<AuthGateResult> _future = _signInAndPrepareProfile();
+  static const Duration _retryDelay = Duration(milliseconds: 900);
+
+  late Future<AuthGateResult> _future;
+  bool _retryScheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _signInAndPrepareProfile();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -72,18 +83,8 @@ class _AuthGatePageState extends State<AuthGatePage> {
         }
 
         if (snapshot.hasError) {
-          final String message = snapshot.error.toString();
-          return BootStatusPage(
-            title: 'MindfulConnect',
-            headline: 'auth 진입 흐름에서 문제가 발생했습니다.',
-            description: message,
-            primaryLabel: 'Auth Blocked',
-            detailItems: const <String>[
-              'anonymous auth 활성화 여부 확인',
-              'profiles 테이블/RLS 확인',
-              'backend handoff 문서 기준 계약 확인',
-            ],
-          );
+          _scheduleAuthGateRetry();
+          return const AppLoadingPage(message: '세션을 다시 연결하고 있어요.');
         }
 
         final AuthGateResult result = snapshot.data!;
@@ -104,6 +105,31 @@ class _AuthGatePageState extends State<AuthGatePage> {
       dataSource: dataSource,
     );
 
+    for (int attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        return await _prepareProfileOnce(
+          client: client,
+          authRepository: authRepository,
+          profileRepository: profileRepository,
+        );
+      } catch (error) {
+        if (!_shouldRecoverAuthGateError(error) || attempt == 2) {
+          rethrow;
+        }
+
+        await _resetAuthSession(authRepository);
+        await Future<void>.delayed(_retryDelay);
+      }
+    }
+
+    throw StateError('Auth gate retry loop ended without a result.');
+  }
+
+  Future<AuthGateResult> _prepareProfileOnce({
+    required SupabaseClient client,
+    required AuthRepository authRepository,
+    required ProfileRepository profileRepository,
+  }) async {
     await _ensureValidSession(client: client, authRepository: authRepository);
 
     final Session? session = client.auth.currentSession;
@@ -144,6 +170,23 @@ class _AuthGatePageState extends State<AuthGatePage> {
     );
   }
 
+  void _scheduleAuthGateRetry() {
+    if (_retryScheduled) {
+      return;
+    }
+
+    _retryScheduled = true;
+    Future<void>.delayed(_retryDelay, () {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _retryScheduled = false;
+        _future = _signInAndPrepareProfile();
+      });
+    });
+  }
+
   Future<void> _ensureValidSession({
     required SupabaseClient client,
     required AuthRepository authRepository,
@@ -169,6 +212,43 @@ class _AuthGatePageState extends State<AuthGatePage> {
     }
 
     await authRepository.signInForDevelopment();
+  }
+
+  Future<void> _resetAuthSession(AuthRepository authRepository) async {
+    try {
+      await authRepository.signOut();
+    } catch (_) {
+      // Best-effort cleanup; the following sign-in creates a fresh session.
+    }
+
+    await authRepository.signInForDevelopment();
+  }
+
+  bool _shouldRecoverAuthGateError(Object error) {
+    if (error is MappedAppException) {
+      return error.code == '42501' ||
+          error.code == domain_auth.AuthErrorCode.unauthorized ||
+          error.code == domain_auth.AuthErrorCode.forbidden ||
+          error.code == domain_auth.AuthErrorCode.unauthenticated ||
+          error.code == domain_auth.AuthErrorCode.sessionExpired ||
+          _looksLikeProfileRlsError(error.message);
+    }
+
+    if (error is domain_auth.AuthException) {
+      return error.code == domain_auth.AuthErrorCode.unauthorized ||
+          error.code == domain_auth.AuthErrorCode.forbidden ||
+          error.code == domain_auth.AuthErrorCode.unauthenticated ||
+          error.code == domain_auth.AuthErrorCode.sessionExpired ||
+          error.code == domain_auth.AuthErrorCode.profileIncomplete;
+    }
+
+    return _looksLikeProfileRlsError(error.toString());
+  }
+
+  bool _looksLikeProfileRlsError(String? message) {
+    final String text = message?.toLowerCase() ?? '';
+    return text.contains('42501') ||
+        (text.contains('row-level security') && text.contains('profiles'));
   }
 
   bool _hasValidSession(Session? session) {
