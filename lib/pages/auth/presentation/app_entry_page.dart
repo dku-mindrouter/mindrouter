@@ -113,9 +113,7 @@ class _AuthGatePageState extends State<AuthGatePage> {
       dataSource: dataSource,
     );
 
-    if (client.auth.currentUser == null) {
-      await authRepository.signInForDevelopment();
-    }
+    await _ensureValidSession(client: client, authRepository: authRepository);
 
     final Session? session = client.auth.currentSession;
     final User? user = client.auth.currentUser;
@@ -153,6 +151,41 @@ class _AuthGatePageState extends State<AuthGatePage> {
       timezone: profile?['timezone'] as String? ?? widget.defaultTimezone,
       nextRoute: resolveAuthNextRoute(),
     );
+  }
+
+  Future<void> _ensureValidSession({
+    required SupabaseClient client,
+    required AuthRepository authRepository,
+  }) async {
+    if (_hasValidSession(client.auth.currentSession)) {
+      return;
+    }
+
+    try {
+      await authRepository.signInForDevelopment();
+      if (_hasValidSession(client.auth.currentSession)) {
+        return;
+      }
+    } catch (_) {
+      // Stale local auth state can keep currentUser while the session is dead.
+      // Clear it best-effort, then create a fresh anonymous session below.
+    }
+
+    try {
+      await authRepository.signOut();
+    } catch (_) {
+      // Local cleanup is best-effort; re-login is the required recovery path.
+    }
+
+    await authRepository.signInForDevelopment();
+  }
+
+  bool _hasValidSession(Session? session) {
+    final DateTime? expiresAt = _parseSessionExpiry(session);
+    if (expiresAt == null) {
+      return false;
+    }
+    return expiresAt.isAfter(DateTime.now().toUtc());
   }
 
   DateTime? _parseSessionExpiry(Session? session) {
