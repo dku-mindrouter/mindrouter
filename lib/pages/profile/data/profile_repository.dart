@@ -1,6 +1,7 @@
 import '../../../shared/features/data/app_error.dart';
 import '../../../shared/features/data/execute_with_error_mapping.dart';
 import '../../../shared/features/data/with_retry.dart';
+import '../domain/avatar_collection_item.dart';
 import '../domain/my_stats.dart';
 import '../domain/my_star_history_item.dart';
 import '../domain/profile_exception.dart';
@@ -30,6 +31,15 @@ class ProfileRepository {
               ),
               todayReceivedComfortCount:
                   (row['today_received_comfort_count'] as num?)?.toInt() ?? 0,
+              avatarNameKo: row['avatar_name_ko'] as String? ?? '달토끼',
+              avatarLevel: (row['avatar_level'] as num?)?.toInt() ?? 1,
+              avatarXp: (row['avatar_xp'] as num?)?.toInt() ?? 0,
+              avatarLevelTitleKo:
+                  row['avatar_level_title_ko'] as String? ?? '처음 만난 마음',
+              avatarCurrentLevelXp:
+                  (row['avatar_current_level_xp'] as num?)?.toInt() ?? 0,
+              avatarNextLevelXp:
+                  (row['avatar_next_level_xp'] as num?)?.toInt() ?? 80,
             );
             await checkStatsConsistency(stats: stats);
             return stats;
@@ -62,6 +72,53 @@ class ProfileRepository {
         ),
         maxRetryCount: 2,
         shouldRetry: _shouldRetry,
+      );
+    } catch (error) {
+      throw mapToProfileException(error);
+    }
+  }
+
+  Future<List<AvatarCollectionItem>> fetchAvatarCollection() async {
+    try {
+      return await withRetry(
+        task: () => executeWithErrorMapping<List<AvatarCollectionItem>>(
+          action: () async {
+            final dynamic raw = await _dataSource.fetchAvatarCollection();
+            return _toRows(
+              raw,
+            ).map(AvatarCollectionItem.fromMap).toList(growable: false);
+          },
+        ),
+        maxRetryCount: 2,
+        shouldRetry: _shouldRetry,
+      );
+    } catch (error) {
+      throw mapToProfileException(error);
+    }
+  }
+
+  Future<void> equipAvatar({required String userAvatarId}) async {
+    try {
+      await executeWithErrorMapping<void>(
+        action: () async {
+          await _dataSource.equipAvatar(userAvatarId: userAvatarId);
+        },
+      );
+    } catch (error) {
+      throw mapToProfileException(error);
+    }
+  }
+
+  Future<String> updateNickname({required String nickname}) async {
+    try {
+      return await executeWithErrorMapping<String>(
+        action: () async {
+          final dynamic raw = await _dataSource.updateNickname(
+            nickname: nickname,
+          );
+          final Map<String, dynamic> row = _firstRow(raw);
+          return row['nickname'] as String? ?? nickname.trim();
+        },
       );
     } catch (error) {
       throw mapToProfileException(error);

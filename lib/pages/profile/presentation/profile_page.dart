@@ -10,6 +10,7 @@ import '../../nudge/data/supabase_nudge_data_source.dart';
 import '../../nudge/domain/nudge_mission.dart';
 import '../data/profile_repository.dart';
 import '../data/supabase_profile_data_source.dart';
+import '../domain/avatar_collection_item.dart';
 import '../domain/my_stats.dart';
 import '../../../shared/widgets/app_panel_card.dart';
 
@@ -45,10 +46,12 @@ class _ProfilePageState extends State<ProfilePage> {
   late Future<_TodayStarPreview> _todayStarFuture;
   late Future<MyStats> _myStatsFuture;
   late Future<NudgeMission> _todayMissionFuture;
+  late String _nickname;
 
   @override
   void initState() {
     super.initState();
+    _nickname = widget.nickname;
     _todayStarFuture = _loadTodayStarPreview();
     _myStatsFuture = _loadMyStats();
     _todayMissionFuture = _loadTodayMission();
@@ -60,6 +63,7 @@ class _ProfilePageState extends State<ProfilePage> {
     if (oldWidget.refreshTick != widget.refreshTick ||
         oldWidget.isPreviewMode != widget.isPreviewMode) {
       setState(() {
+        _nickname = widget.nickname;
         _todayStarFuture = _loadTodayStarPreview();
         _myStatsFuture = _loadMyStats();
         _todayMissionFuture = _loadTodayMission();
@@ -108,6 +112,17 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ),
         const SizedBox(height: 24),
+        FutureBuilder<MyStats>(
+          future: _myStatsFuture,
+          builder: (BuildContext context, AsyncSnapshot<MyStats> snapshot) {
+            final MyStats stats = snapshot.data ?? MyStats.previewMock();
+            return _AvatarXpCard(
+              stats: stats,
+              onTap: () => _openAvatarProfileSheet(stats),
+            );
+          },
+        ),
+        const SizedBox(height: 16),
         AppPanelCard(
           padding: const EdgeInsets.all(22),
           backgroundColor: const Color(0xCC1C1E34),
@@ -315,12 +330,75 @@ class _ProfilePageState extends State<ProfilePage> {
           },
         ),
         const SizedBox(height: 16),
-        _ProfileField(label: 'nickname', value: widget.nickname),
+        _ProfileField(label: 'nickname', value: _nickname),
         _ProfileField(label: 'timezone', value: widget.timezone),
         _ProfileField(label: 'next route', value: widget.nextRoute),
         _ProfileField(label: 'user id', value: widget.userId),
       ],
     );
+  }
+
+  ProfileRepository _profileRepository() {
+    return ProfileRepository(
+      dataSource: SupabaseProfileDataSource(client: Supabase.instance.client),
+    );
+  }
+
+  Future<void> _openAvatarProfileSheet(MyStats stats) async {
+    if (widget.isPreviewMode) {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (BuildContext context) {
+          return _AvatarProfileSheet(
+            initialStats: stats,
+            avatars: AvatarCollectionItem.previewList(),
+            onEquipAvatar: (_) async {},
+          );
+        },
+      );
+      return;
+    }
+
+    try {
+      final ProfileRepository repository = _profileRepository();
+      final List<AvatarCollectionItem> avatars = await repository
+          .fetchAvatarCollection();
+      if (!mounted) {
+        return;
+      }
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (BuildContext context) {
+          return _AvatarProfileSheet(
+            initialStats: stats,
+            avatars: avatars,
+            onEquipAvatar: (AvatarCollectionItem avatar) async {
+              final String? userAvatarId = avatar.userAvatarId;
+              if (userAvatarId == null || !avatar.isUnlocked) {
+                return;
+              }
+              await repository.equipAvatar(userAvatarId: userAvatarId);
+              if (mounted) {
+                setState(() {
+                  _myStatsFuture = _loadMyStats();
+                });
+              }
+            },
+          );
+        },
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('프로필 정보를 불러오지 못했어요.')));
+    }
   }
 
   Future<MyStats> _loadMyStats() async {
@@ -329,10 +407,7 @@ class _ProfilePageState extends State<ProfilePage> {
     }
 
     try {
-      final SupabaseClient client = Supabase.instance.client;
-      final ProfileRepository repository = ProfileRepository(
-        dataSource: SupabaseProfileDataSource(client: client),
-      );
+      final ProfileRepository repository = _profileRepository();
       return await repository.fetchMyStats();
     } catch (_) {
       return MyStats.previewMock();
@@ -774,6 +849,473 @@ class _MetricCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AvatarXpCard extends StatelessWidget {
+  const _AvatarXpCard({required this.stats, required this.onTap});
+
+  final MyStats stats;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isMaxLevel = stats.avatarLevel >= MyStats.maxAvatarLevel;
+    final String progressLabel = isMaxLevel
+        ? 'MAX'
+        : '${stats.avatarXpInCurrentLevel} / ${stats.avatarLevelRange} XP';
+    final String nextLabel = isMaxLevel
+        ? '최대 레벨 도달'
+        : '다음 성장까지 ${stats.avatarRemainingXp} XP';
+
+    return Semantics(
+      button: true,
+      label: '${stats.avatarNameKo} 아바타 성장 카드',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(28),
+        child: AppPanelCard(
+          padding: const EdgeInsets.all(20),
+          backgroundColor: const Color(0x801C1E34),
+          borderColor: const Color(0x33818CF8),
+          borderRadius: 28,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      gradient: const LinearGradient(
+                        colors: <Color>[Color(0xFF38BDF8), Color(0xFF818CF8)],
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.pets_rounded,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          '${stats.avatarNameKo} Lv.${stats.avatarLevel}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          stats.avatarLevelTitleKo,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.58),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    '${stats.avatarXp} XP',
+                    style: const TextStyle(
+                      color: Color(0xFFFDE68A),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.tune_rounded,
+                    color: Colors.white.withValues(alpha: 0.52),
+                    size: 18,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  value: stats.avatarLevelProgress,
+                  minHeight: 9,
+                  backgroundColor: Colors.white.withValues(alpha: 0.08),
+                  valueColor: const AlwaysStoppedAnimation<Color>(
+                    Color(0xFF38BDF8),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: <Widget>[
+                  Text(
+                    progressLabel,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.46),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    nextLabel,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.46),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AvatarProfileSheet extends StatefulWidget {
+  const _AvatarProfileSheet({
+    required this.initialStats,
+    required this.avatars,
+    required this.onEquipAvatar,
+  });
+
+  final MyStats initialStats;
+  final List<AvatarCollectionItem> avatars;
+  final Future<void> Function(AvatarCollectionItem avatar) onEquipAvatar;
+
+  @override
+  State<_AvatarProfileSheet> createState() => _AvatarProfileSheetState();
+}
+
+class _AvatarProfileSheetState extends State<_AvatarProfileSheet> {
+  late List<AvatarCollectionItem> _avatars;
+  String? _message;
+
+  @override
+  void initState() {
+    super.initState();
+    _avatars = widget.avatars;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final int totalXp = _avatars.isEmpty
+        ? widget.initialStats.avatarXp
+        : _avatars.first.totalCollectionXp;
+    final int totalLevel = _avatars.isEmpty
+        ? widget.initialStats.avatarLevel
+        : _avatars.first.totalCollectionLevel;
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.86,
+      minChildSize: 0.56,
+      maxChildSize: 0.94,
+      builder: (BuildContext context, ScrollController scrollController) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF121427),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+          ),
+          child: ListView(
+            controller: scrollController,
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+            children: <Widget>[
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: <Widget>[
+                  const Expanded(
+                    child: Text(
+                      '아바타 프로필',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded, color: Colors.white),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: _SheetSummaryCard(
+                      label: '총 경험치',
+                      value: '$totalXp XP',
+                      icon: Icons.bolt_rounded,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _SheetSummaryCard(
+                      label: '아바타 레벨 합',
+                      value: '$totalLevel',
+                      icon: Icons.stacked_line_chart_rounded,
+                    ),
+                  ),
+                ],
+              ),
+              if (_message != null) ...<Widget>[
+                const SizedBox(height: 12),
+                Text(
+                  _message!,
+                  style: const TextStyle(
+                    color: Color(0xFFFDE68A),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 22),
+              const Text(
+                '아바타 선택',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ..._avatars.map(_buildAvatarTile),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAvatarTile(AvatarCollectionItem avatar) {
+    final Color accent = avatar.isUnlocked
+        ? const Color(0xFF38BDF8)
+        : Colors.white.withValues(alpha: 0.28);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        onTap: avatar.isUnlocked ? () => _equipAvatar(avatar) : null,
+        borderRadius: BorderRadius.circular(22),
+        child: AppPanelCard(
+          padding: const EdgeInsets.all(16),
+          backgroundColor: avatar.isEquipped
+              ? const Color(0x2238BDF8)
+              : Colors.white.withValues(alpha: 0.04),
+          borderColor: avatar.isEquipped
+              ? const Color(0x6638BDF8)
+              : Colors.white.withValues(alpha: 0.07),
+          borderRadius: 22,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      color: accent.withValues(alpha: 0.18),
+                    ),
+                    child: Icon(
+                      avatar.isUnlocked
+                          ? Icons.pets_rounded
+                          : Icons.lock_outline_rounded,
+                      color: accent,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          avatar.avatarNameKo,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          avatar.isUnlocked
+                              ? 'Lv.${avatar.level} · ${avatar.xp} XP'
+                              : '아직 잠긴 아바타',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.52),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (avatar.isEquipped)
+                    const _AvatarBadge(label: '장착 중')
+                  else if (avatar.isUnlocked)
+                    const Icon(
+                      Icons.arrow_forward_rounded,
+                      color: Colors.white54,
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                avatar.description,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.54),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (avatar.isUnlocked) ...<Widget>[
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    value: avatar.levelProgress,
+                    minHeight: 7,
+                    backgroundColor: Colors.white.withValues(alpha: 0.08),
+                    valueColor: AlwaysStoppedAnimation<Color>(accent),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _equipAvatar(AvatarCollectionItem avatar) async {
+    if (avatar.isEquipped) {
+      return;
+    }
+    try {
+      await widget.onEquipAvatar(avatar);
+      setState(() {
+        _avatars = _avatars
+            .map(
+              (AvatarCollectionItem item) => AvatarCollectionItem(
+                avatarId: item.avatarId,
+                userAvatarId: item.userAvatarId,
+                avatarCode: item.avatarCode,
+                avatarNameKo: item.avatarNameKo,
+                description: item.description,
+                rarity: item.rarity,
+                isUnlocked: item.isUnlocked,
+                isEquipped: item.userAvatarId == avatar.userAvatarId,
+                level: item.level,
+                xp: item.xp,
+                levelTitleKo: item.levelTitleKo,
+                currentLevelXp: item.currentLevelXp,
+                nextLevelXp: item.nextLevelXp,
+                totalCollectionXp: item.totalCollectionXp,
+                totalCollectionLevel: item.totalCollectionLevel,
+              ),
+            )
+            .toList(growable: false);
+        _message = '${avatar.avatarNameKo}을(를) 장착했어요.';
+      });
+    } catch (_) {
+      setState(() {
+        _message = '아바타를 변경하지 못했어요.';
+      });
+    }
+  }
+}
+
+class _SheetSummaryCard extends StatelessWidget {
+  const _SheetSummaryCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppPanelCard(
+      padding: const EdgeInsets.all(16),
+      backgroundColor: const Color(0x1AFDE68A),
+      borderColor: const Color(0x33FDE68A),
+      borderRadius: 22,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(icon, color: const Color(0xFFFDE68A), size: 20),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.48),
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AvatarBadge extends StatelessWidget {
+  const _AvatarBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: const Color(0xFF38BDF8).withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0x6638BDF8)),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Color(0xFFBAE6FD),
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+        ),
       ),
     );
   }

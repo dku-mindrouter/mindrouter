@@ -383,6 +383,13 @@ class _MindRouterShellState extends State<_MindRouterShell> {
   int _currentIndex = 0;
   int _profileRefreshTick = 0;
   _ProfileSubPage _profileSubPage = _ProfileSubPage.profile;
+  late String _nickname;
+
+  @override
+  void initState() {
+    super.initState();
+    _nickname = widget.nickname;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -390,6 +397,9 @@ class _MindRouterShellState extends State<_MindRouterShell> {
       _ProfileSubPage.settings => SettingsPage(
         onBack: _closeProfileSubPage,
         userId: widget.userId,
+        nickname: _nickname,
+        isPreviewMode: widget.previewMessage != null,
+        onNicknameChanged: _handleNicknameChanged,
         notificationRegistrar: widget.notificationRegistrar,
       ),
       _ProfileSubPage.todayMission => TodayMissionPage(
@@ -401,7 +411,7 @@ class _MindRouterShellState extends State<_MindRouterShell> {
         isPreviewMode: widget.previewMessage != null,
       ),
       _ProfileSubPage.profile => ProfilePage(
-        nickname: widget.nickname,
+        nickname: _nickname,
         timezone: widget.timezone,
         nextRoute: widget.nextRoute,
         userId: widget.userId,
@@ -415,7 +425,7 @@ class _MindRouterShellState extends State<_MindRouterShell> {
 
     final List<Widget> pages = <Widget>[
       EmotionHomePage(
-        nickname: widget.nickname,
+        nickname: _nickname,
         timezone: widget.timezone,
         isPreviewMode: widget.previewMessage != null,
       ),
@@ -534,6 +544,13 @@ class _MindRouterShellState extends State<_MindRouterShell> {
   void _closeProfileSubPage() {
     setState(() {
       _profileSubPage = _ProfileSubPage.profile;
+      _profileRefreshTick += 1;
+    });
+  }
+
+  void _handleNicknameChanged(String nickname) {
+    setState(() {
+      _nickname = nickname;
       _profileRefreshTick += 1;
     });
   }

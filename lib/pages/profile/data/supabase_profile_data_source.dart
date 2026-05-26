@@ -20,4 +20,25 @@ class SupabaseProfileDataSource implements ProfileDataSource {
       params: <String, dynamic>{'p_limit': limit, 'p_offset': offset},
     );
   }
+
+  @override
+  Future<dynamic> fetchAvatarCollection() {
+    return _client.rpc('get_avatar_collection');
+  }
+
+  @override
+  Future<dynamic> equipAvatar({required String userAvatarId}) {
+    return _client.rpc(
+      'equip_avatar',
+      params: <String, dynamic>{'p_user_avatar_id': userAvatarId},
+    );
+  }
+
+  @override
+  Future<dynamic> updateNickname({required String nickname}) {
+    return _client.rpc(
+      'update_my_nickname',
+      params: <String, dynamic>{'p_nickname': nickname},
+    );
+  }
 }

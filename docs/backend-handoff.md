@@ -106,6 +106,30 @@ Used from [lib/pages/constellation/data/supabase_constellation_data_source.dart]
   - `image_url`
   - `seen_at`
 
+### Avatar XP
+
+- XP is attached to the equipped avatar, not to the whole account.
+- `get_my_stats` must return equipped avatar progress:
+  - `equipped_user_avatar_id`
+  - `avatar_code`
+  - `avatar_name_ko`
+  - `avatar_level`
+  - `avatar_xp`
+  - `avatar_level_title_ko`
+  - `avatar_current_level_xp`
+  - `avatar_next_level_xp`
+- XP reward rules:
+  - emotion record: `+20`
+  - today mission complete: `+30`
+  - 3-day emotion streak milestone: `+20`
+  - 7-day emotion streak milestone: `+50`
+- Reactions, coffee gifts, and letters intentionally do not grant XP.
+- Profile avatar sheet uses:
+  - `get_avatar_collection`
+  - `equip_avatar`
+  - `update_my_nickname`
+- `get_avatar_collection` returns total collection XP, total avatar level sum, and each avatar's XP/level.
+
 ### Reaction
 
 Used from [lib/pages/reaction/data/supabase_reaction_data_source.dart](/Users/yuchan/Desktop/git/mindrouter/lib/pages/reaction/data/supabase_reaction_data_source.dart)

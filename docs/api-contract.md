@@ -22,6 +22,11 @@
   - `star_id` (uuid)
   - `created_at` (timestamptz)
   - `created_local_date` (date)
+- 부수 효과:
+  - 장착 중인 아바타에 `emotion_record` XP `+20` 지급
+  - 감정 기록 연속일이 3의 배수이면 `emotion_streak_3` XP `+20` 추가 지급
+  - 감정 기록 연속일이 7의 배수이면 `emotion_streak_7` XP `+50` 추가 지급
+  - 21일처럼 두 조건을 동시에 만족하면 두 보너스를 모두 지급
 - 에러코드:
   - `UNAUTHORIZED`
   - `FORBIDDEN`
@@ -348,11 +353,107 @@
 - 동작:
   - `opened_at`, `started_at`, `completed_at`을 순차적으로 채움
   - 이미 완료된 미션은 기존 완료 시각 유지
+  - 장착 중인 아바타에 `mission_complete` XP `+30` 지급
+  - 동일 `delivery_id` 기준 XP는 1회만 지급
 - 에러코드:
   - `NUDGE_NOT_FOUND`
   - `UNAUTHORIZED`
   - `INVALID_ARGUMENT`
   - `INTERNAL_ERROR`
+
+## Avatar XP / Level
+
+- 목적: 계정 전체 레벨이 아니라 `장착 중인 아바타`별 성장 수치 관리
+- 최대 레벨: 10
+- 만렙 필요 총 XP: 2300
+- 레벨표:
+  - Lv.1: 0 XP
+  - Lv.2: 80 XP
+  - Lv.3: 180 XP
+  - Lv.4: 320 XP
+  - Lv.5: 500 XP
+  - Lv.6: 750 XP
+  - Lv.7: 1050 XP
+  - Lv.8: 1400 XP
+  - Lv.9: 1800 XP
+  - Lv.10: 2300 XP
+- XP 지급 정책:
+  - 감정 기록 작성: `+20 XP`
+  - 오늘 미션 완료: `+30 XP`
+  - 3일 연속 감정 기록: `+20 XP`
+  - 7일 연속 감정 기록: `+50 XP`
+  - 일반 리액션, 커피 보내기, 편지 보내기는 XP를 지급하지 않음
+
+## get_avatar_collection
+
+- 목적: 아바타 선택 화면에 필요한 전체 수집/성장 현황 조회
+- RPC 이름: `get_avatar_collection`
+- 입력: 없음(auth.uid 기준)
+- 동작:
+  - 기본 선택 가능 아바타 `moon_rabbit`, `sunny_chick`을 사용자에게 자동 보유 처리
+  - 보유하지 않은 활성 아바타는 잠김 상태로 반환
+- 응답:
+  - `avatar_id` (bigint)
+  - `user_avatar_id` (uuid|null)
+  - `avatar_code` (varchar)
+  - `avatar_name_ko` (varchar)
+  - `description` (varchar)
+  - `rarity` (varchar)
+  - `is_unlocked` (bool)
+  - `is_equipped` (bool)
+  - `level` (smallint)
+  - `xp` (int)
+  - `level_title_ko` (varchar)
+  - `current_level_xp` (int)
+  - `next_level_xp` (int)
+  - `total_collection_xp` (int)
+  - `total_collection_level` (int)
+
+## equip_avatar
+
+- 목적: 보유 아바타 중 하나를 현재 장착 아바타로 변경
+- RPC 이름: `equip_avatar`
+- 입력:
+  - `p_user_avatar_id` (uuid)
+- 정책:
+  - 자신의 `user_avatars` row만 장착 가능
+  - 기존 장착 아바타는 자동 해제
+- 에러코드:
+  - `UNAUTHORIZED`
+  - `INVALID_ARGUMENT`
+  - `AVATAR_NOT_OWNED`
+  - `INTERNAL_ERROR`
+
+## update_my_nickname
+
+- 목적: 프로필에서 닉네임 변경
+- RPC 이름: `update_my_nickname`
+- 입력:
+  - `p_nickname` (text)
+- 정책:
+  - `auth.uid()`의 `profiles.nickname`만 변경
+  - 2~24자, 앞뒤 공백 제거, 내부 공백 불가
+  - 중복 닉네임은 `NICKNAME_ALREADY_EXISTS`
+- 응답:
+  - `nickname` (varchar)
+
+## get_my_stats
+
+- 목적: 프로필 통계 + 장착 아바타 XP 상태 조회
+- RPC 이름: `get_my_stats`
+- 입력: 없음(auth.uid 기준)
+- 응답:
+  - `date_local` (date)
+  - `logged_dates` (date[])
+  - `today_received_comfort_count` (int)
+  - `equipped_user_avatar_id` (uuid)
+  - `avatar_code` (varchar)
+  - `avatar_name_ko` (varchar)
+  - `avatar_level` (smallint)
+  - `avatar_xp` (int)
+  - `avatar_level_title_ko` (varchar)
+  - `avatar_current_level_xp` (int)
+  - `avatar_next_level_xp` (int)
 
 ## Emotion Domain Policy Notes (2026-04-11)
 

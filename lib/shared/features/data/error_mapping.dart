@@ -109,4 +109,6 @@ const Set<String> _knownAppCodes = <String>{
   'PROFILE_INCOMPLETE',
   'INVALID_NICKNAME',
   'NICKNAME_BLOCKED_WORD',
+  'NICKNAME_ALREADY_EXISTS',
+  'AVATAR_NOT_OWNED',
 };

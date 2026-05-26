@@ -1,8 +1,11 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../auth/data/push_notification_registrar.dart';
+import '../../profile/data/profile_repository.dart';
+import '../../profile/data/supabase_profile_data_source.dart';
 import '../../../shared/widgets/app_panel_card.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -10,11 +13,17 @@ class SettingsPage extends StatefulWidget {
     super.key,
     required this.onBack,
     required this.userId,
+    required this.nickname,
+    required this.isPreviewMode,
+    required this.onNicknameChanged,
     this.notificationRegistrar,
   });
 
   final VoidCallback onBack;
   final String userId;
+  final String nickname;
+  final bool isPreviewMode;
+  final ValueChanged<String> onNicknameChanged;
   final PushNotificationRegistrar? notificationRegistrar;
 
   @override
@@ -27,11 +36,29 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _nightStarEnabled = true;
   bool _morningMissionEnabled = true;
   bool _comfortArrivalEnabled = true;
+  late final TextEditingController _nicknameController;
+  bool _isSavingNickname = false;
 
   @override
   void initState() {
     super.initState();
+    _nicknameController = TextEditingController(text: widget.nickname);
     _loadPushPermissionState();
+  }
+
+  @override
+  void didUpdateWidget(covariant SettingsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.nickname != widget.nickname &&
+        _nicknameController.text != widget.nickname) {
+      _nicknameController.text = widget.nickname;
+    }
+  }
+
+  @override
+  void dispose() {
+    _nicknameController.dispose();
+    super.dispose();
   }
 
   @override
@@ -69,6 +96,90 @@ class _SettingsPageState extends State<SettingsPage> {
               ],
             ),
             const SizedBox(height: 32),
+            const _SettingsSectionHeader(
+              icon: Icons.person_outline_rounded,
+              label: '프로필 설정',
+            ),
+            const SizedBox(height: 14),
+            AppPanelCard(
+              padding: const EdgeInsets.all(20),
+              backgroundColor: const Color(0xD91A1B2F),
+              borderColor: Colors.white.withValues(alpha: 0.07),
+              borderRadius: 28,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  const Text(
+                    '닉네임 변경',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '2~24자, 공백 없이 사용할 수 있어요.',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.52),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: _nicknameController,
+                    maxLength: 24,
+                    enabled: !_isSavingNickname,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      counterStyle: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.42),
+                      ),
+                      hintText: '닉네임 입력',
+                      hintStyle: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.32),
+                      ),
+                      filled: true,
+                      fillColor: Colors.black.withValues(alpha: 0.14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(18),
+                        borderSide: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.08),
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(18),
+                        borderSide: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.08),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(18),
+                        borderSide: const BorderSide(color: Color(0xFF818CF8)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: _isSavingNickname ? null : _saveNickname,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF6366F1),
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: const Color(0xFF39386E),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: Text(_isSavingNickname ? '저장 중' : '닉네임 저장'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 30),
             const _SettingsSectionHeader(
               icon: Icons.notifications_none_rounded,
               label: '알림 설정',
@@ -205,6 +316,55 @@ class _SettingsPageState extends State<SettingsPage> {
         backgroundColor: const Color(0xFF1B1D32),
       ),
     );
+  }
+
+  Future<void> _saveNickname() async {
+    final String nickname = _nicknameController.text.trim();
+    if (nickname.length < 2 || nickname.length > 24 || nickname.contains(' ')) {
+      _showPlaceholder('닉네임은 2~24자, 공백 없이 입력해 주세요.');
+      return;
+    }
+
+    if (nickname == widget.nickname) {
+      _showPlaceholder('이미 사용 중인 닉네임이에요.');
+      return;
+    }
+
+    setState(() {
+      _isSavingNickname = true;
+    });
+
+    try {
+      final String updatedNickname;
+      if (widget.isPreviewMode) {
+        updatedNickname = nickname;
+      } else {
+        final ProfileRepository repository = ProfileRepository(
+          dataSource: SupabaseProfileDataSource(
+            client: Supabase.instance.client,
+          ),
+        );
+        updatedNickname = await repository.updateNickname(nickname: nickname);
+      }
+
+      if (!mounted) {
+        return;
+      }
+      _nicknameController.text = updatedNickname;
+      widget.onNicknameChanged(updatedNickname);
+      _showPlaceholder('닉네임을 변경했어요.');
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      _showPlaceholder('닉네임을 변경하지 못했어요. 중복이거나 사용할 수 없는 값일 수 있어요.');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingNickname = false;
+        });
+      }
+    }
   }
 
   String get _pushPermissionDescription {
