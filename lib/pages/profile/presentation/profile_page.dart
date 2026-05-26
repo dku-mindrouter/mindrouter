@@ -73,16 +73,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    const List<_WeeklyMoodBarData> weeklyMood = <_WeeklyMoodBarData>[
-      _WeeklyMoodBarData(day: '월', value: 3, color: Color(0xFF7656B8)),
-      _WeeklyMoodBarData(day: '화', value: 5, color: Color(0xFF683F99)),
-      _WeeklyMoodBarData(day: '수', value: 4, color: Color(0xFF7656B8)),
-      _WeeklyMoodBarData(day: '목', value: 6, color: Color(0xFF9B4F60)),
-      _WeeklyMoodBarData(day: '금', value: 4, color: Color(0xFF599B8E)),
-      _WeeklyMoodBarData(day: '토', value: 2, color: Color(0xFFB37D4E)),
-      _WeeklyMoodBarData(day: '오늘', value: 7, color: Color(0xFF7656B8)),
-    ];
-
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 120),
       children: <Widget>[
@@ -319,8 +309,6 @@ class _ProfilePageState extends State<ProfilePage> {
             );
           },
         ),
-        const SizedBox(height: 16),
-        _WeeklyMoodChart(data: weeklyMood),
         const SizedBox(height: 16),
         FutureBuilder<MyStats>(
           future: _myStatsFuture,
@@ -1321,87 +1309,6 @@ class _AvatarBadge extends StatelessWidget {
   }
 }
 
-class _WeeklyMoodChart extends StatelessWidget {
-  const _WeeklyMoodChart({required this.data});
-
-  final List<_WeeklyMoodBarData> data;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppPanelCard(
-      padding: const EdgeInsets.all(18),
-      backgroundColor: const Color(0x801C1E34),
-      borderColor: Colors.white.withValues(alpha: 0.06),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Text(
-                'Recent 7 Days',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.48),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '감정 강도',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.48),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          SizedBox(
-            height: 120,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: data
-                  .map(
-                    (_WeeklyMoodBarData item) => Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: <Widget>[
-                            Container(
-                              height: 14 * item.value.toDouble(),
-                              decoration: BoxDecoration(
-                                color: item.color.withValues(
-                                  alpha: item.day == '오늘' ? 1 : 0.62,
-                                ),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              item.day,
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.46),
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  )
-                  .toList(growable: false),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _NextBadgeCard extends StatelessWidget {
   const _NextBadgeCard({required this.stats});
 
@@ -1474,16 +1381,4 @@ class _NextBadgeCard extends StatelessWidget {
       ),
     );
   }
-}
-
-class _WeeklyMoodBarData {
-  const _WeeklyMoodBarData({
-    required this.day,
-    required this.value,
-    required this.color,
-  });
-
-  final String day;
-  final int value;
-  final Color color;
 }
