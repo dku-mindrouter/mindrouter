@@ -16,6 +16,10 @@ class NudgeMission {
     required this.openedAt,
     required this.startedAt,
     required this.completedAt,
+    required this.selectionSource,
+    required this.matchedMissionProfile,
+    required this.missionGoal,
+    required this.missionStateLabel,
   });
 
   final String deliveryId;
@@ -34,6 +38,10 @@ class NudgeMission {
   final DateTime? openedAt;
   final DateTime? startedAt;
   final DateTime? completedAt;
+  final String selectionSource;
+  final String? matchedMissionProfile;
+  final String missionGoal;
+  final String missionStateLabel;
 
   bool get isStarted => startedAt != null;
   bool get isCompleted => completedAt != null;
@@ -76,6 +84,10 @@ class NudgeMission {
       openedAt: _asNullableDateTime(map['opened_at']),
       startedAt: _asNullableDateTime(map['started_at']),
       completedAt: _asNullableDateTime(map['completed_at']),
+      selectionSource: map['selection_source'] as String? ?? 'existing',
+      matchedMissionProfile: map['matched_mission_profile'] as String?,
+      missionGoal: map['mission_goal'] as String? ?? '',
+      missionStateLabel: map['mission_state_label'] as String? ?? '',
     );
   }
 
@@ -101,6 +113,10 @@ class NudgeMission {
       openedAt: DateTime.now(),
       startedAt: null,
       completedAt: null,
+      selectionSource: 'emotion',
+      matchedMissionProfile: 'energized',
+      missionGoal: '에너지를 가볍게 풀어주기',
+      missionStateLabel: '움직일 힘이 있음',
     );
   }
 

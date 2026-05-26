@@ -1,5 +1,8 @@
 abstract class NudgeDataSource {
-  Future<dynamic> fetchTodayMission({required bool markOpened});
+  Future<dynamic> fetchTodayMission({
+    required bool markOpened,
+    String? selectedEmotionProfile,
+  });
 
   Future<void> startTodayMission({required String deliveryId});
 

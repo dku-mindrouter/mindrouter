@@ -31,117 +31,68 @@ class _TodayMissionPageState extends State<TodayMissionPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: <Widget>[
-        FutureBuilder<NudgeMission>(
-          future: _future,
-          builder:
-              (BuildContext context, AsyncSnapshot<NudgeMission> snapshot) {
-                if (snapshot.connectionState != ConnectionState.done) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF818CF8)),
-                  );
-                }
+    return FutureBuilder<NudgeMission>(
+      future: _future,
+      builder: (BuildContext context, AsyncSnapshot<NudgeMission> snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(
+            child: CircularProgressIndicator(color: Color(0xFF818CF8)),
+          );
+        }
 
-                if (snapshot.hasError) {
-                  return ListView(
-                    padding: const EdgeInsets.fromLTRB(22, 22, 22, 160),
-                    children: <Widget>[
-                      _Header(onBack: widget.onBack),
-                      const SizedBox(height: 34),
-                      AppPanelCard(
-                        backgroundColor: const Color(0xE51B1D34),
-                        borderColor: Colors.white.withValues(alpha: 0.08),
-                        borderRadius: 28,
-                        child: Text(
-                          _mapErrorToMessage(snapshot.error),
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.82),
-                            height: 1.6,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                }
+        if (snapshot.hasError) {
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(22, 22, 22, 160),
+            children: <Widget>[
+              _Header(onBack: widget.onBack),
+              const SizedBox(height: 34),
+              AppPanelCard(
+                backgroundColor: const Color(0xE51B1D34),
+                borderColor: Colors.white.withValues(alpha: 0.08),
+                borderRadius: 28,
+                child: Text(
+                  _mapErrorToMessage(snapshot.error),
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.82),
+                    height: 1.6,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
 
-                final NudgeMission mission =
-                    snapshot.data ?? NudgeMission.previewMock();
+        final NudgeMission mission =
+            snapshot.data ?? NudgeMission.previewMock();
 
-                return ListView(
-                  padding: const EdgeInsets.fromLTRB(22, 22, 22, 160),
-                  children: <Widget>[
-                    _Header(onBack: widget.onBack),
-                    const SizedBox(height: 34),
-                    _MissionHero(mission: mission),
-                    const SizedBox(height: 34),
-                    Text(
-                      mission.body,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.82),
-                        fontSize: 16,
-                        height: 1.7,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 38),
-                    _MissionChecklist(mission: mission),
-                    const SizedBox(height: 18),
-                    _MissionStateCard(mission: mission),
-                  ],
-                );
-              },
-        ),
-        Positioned(
-          left: 22,
-          right: 22,
-          bottom: 116,
-          child: FutureBuilder<NudgeMission>(
-            future: _future,
-            builder:
-                (BuildContext context, AsyncSnapshot<NudgeMission> snapshot) {
-                  final NudgeMission mission =
-                      snapshot.data ?? NudgeMission.previewMock();
-                  return FilledButton.icon(
-                    onPressed: _isSubmitting || mission.isCompleted
-                        ? null
-                        : () => _handleMissionAction(mission),
-                    icon: Icon(
-                      mission.isStarted
-                          ? Icons.check_rounded
-                          : Icons.play_arrow_rounded,
-                      size: 26,
-                    ),
-                    label: Text(mission.actionLabel),
-                    style:
-                        FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFFFF7A0C),
-                          foregroundColor: Colors.white,
-                          disabledBackgroundColor: Colors.white.withValues(
-                            alpha: 0.12,
-                          ),
-                          disabledForegroundColor: Colors.white.withValues(
-                            alpha: 0.42,
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 19),
-                          textStyle: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                        ).copyWith(
-                          backgroundColor: const WidgetStatePropertyAll<Color>(
-                            Color(0xFFFF7A0C),
-                          ),
-                        ),
-                  );
-                },
-          ),
-        ),
-      ],
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(22, 22, 22, 160),
+          children: <Widget>[
+            _Header(onBack: widget.onBack),
+            const SizedBox(height: 34),
+            _MissionHero(mission: mission),
+            const SizedBox(height: 34),
+            Text(
+              mission.body,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.82),
+                fontSize: 16,
+                height: 1.7,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 34),
+            _MissionStateCard(mission: mission),
+            const SizedBox(height: 18),
+            _MissionActionButton(
+              isSubmitting: _isSubmitting,
+              mission: mission,
+              onPressed: () => _handleMissionAction(mission),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -149,7 +100,10 @@ class _TodayMissionPageState extends State<TodayMissionPage> {
     if (widget.isPreviewMode) {
       return NudgeMission.previewMock();
     }
-    return _repository.fetchTodayMission(markOpened: true);
+    final NudgeMission mission = await _repository.fetchTodayMission(
+      markOpened: true,
+    );
+    return mission;
   }
 
   Future<void> _handleMissionAction(NudgeMission mission) async {
@@ -216,6 +170,49 @@ class _TodayMissionPageState extends State<TodayMissionPage> {
       }
     }
     return '오늘의 미션을 불러오지 못했어요. 잠시 뒤 다시 시도해 주세요.';
+  }
+}
+
+class _MissionActionButton extends StatelessWidget {
+  const _MissionActionButton({
+    required this.isSubmitting,
+    required this.mission,
+    required this.onPressed,
+  });
+
+  final bool isSubmitting;
+  final NudgeMission mission;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton.icon(
+      onPressed: isSubmitting || mission.isCompleted ? null : onPressed,
+      icon: Icon(
+        mission.isStarted ? Icons.check_rounded : Icons.play_arrow_rounded,
+        size: 26,
+      ),
+      label: Text(mission.actionLabel),
+      style:
+          FilledButton.styleFrom(
+            backgroundColor: const Color(0xFFFF7A0C),
+            foregroundColor: Colors.white,
+            disabledBackgroundColor: Colors.white.withValues(alpha: 0.12),
+            disabledForegroundColor: Colors.white.withValues(alpha: 0.42),
+            padding: const EdgeInsets.symmetric(vertical: 19),
+            textStyle: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+          ).copyWith(
+            backgroundColor: const WidgetStatePropertyAll<Color>(
+              Color(0xFFFF7A0C),
+            ),
+          ),
+    );
   }
 }
 
@@ -309,66 +306,6 @@ class _MissionHero extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _MissionChecklist extends StatelessWidget {
-  const _MissionChecklist({required this.mission});
-
-  final NudgeMission mission;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppPanelCard(
-      padding: const EdgeInsets.fromLTRB(28, 26, 28, 26),
-      backgroundColor: const Color(0xE51B1D34),
-      borderColor: Colors.white.withValues(alpha: 0.08),
-      borderRadius: 28,
-      child: Column(
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              const Text(
-                '체크리스트',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const Spacer(),
-              const Icon(
-                Icons.schedule_rounded,
-                color: Color(0xFF9BAAD0),
-                size: 17,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                '${mission.durationMinutes} mins',
-                style: const TextStyle(
-                  color: Color(0xFF9BAAD0),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          ...List<Widget>.generate(mission.checklist.length, (int index) {
-            final String label = mission.checklist[index];
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: index == mission.checklist.length - 1 ? 0 : 20,
-              ),
-              child: _ChecklistItem(
-                label: label,
-                isChecked: mission.isCompleted,
-              ),
-            );
-          }),
-        ],
-      ),
     );
   }
 }
@@ -470,62 +407,38 @@ class _RoundIconButton extends StatelessWidget {
   }
 }
 
-class _ChecklistItem extends StatelessWidget {
-  const _ChecklistItem({required this.label, required this.isChecked});
-
-  final String label;
-  final bool isChecked;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        Container(
-          width: 24,
-          height: 24,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: isChecked
-                ? const Color(0xFF818CF8).withValues(alpha: 0.18)
-                : Colors.transparent,
-            border: Border.all(
-              color: isChecked
-                  ? const Color(0xFF818CF8)
-                  : const Color(0xFF8EA1CA),
-              width: 1.2,
-            ),
-          ),
-          child: isChecked
-              ? const Icon(
-                  Icons.check_rounded,
-                  size: 16,
-                  color: Color(0xFF818CF8),
-                )
-              : null,
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Text(
-            label,
-            style: const TextStyle(
-              color: Color(0xFFAEB8D4),
-              fontSize: 15,
-              height: 1.35,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 IconData _iconForToken(String icon) {
   switch (icon) {
     case 'air':
       return Icons.air_rounded;
+    case 'chat_bubble_outline_rounded':
+      return Icons.chat_bubble_outline_rounded;
+    case 'directions_walk_rounded':
+      return Icons.directions_walk_rounded;
+    case 'edit_note_rounded':
+      return Icons.edit_note_rounded;
+    case 'inventory_2_outlined':
+      return Icons.inventory_2_outlined;
+    case 'landscape_outlined':
+      return Icons.landscape_outlined;
+    case 'local_cafe_outlined':
+      return Icons.local_cafe_outlined;
+    case 'music_note_rounded':
+      return Icons.music_note_rounded;
+    case 'notifications_off_outlined':
+      return Icons.notifications_off_outlined;
+    case 'schedule_send_outlined':
+      return Icons.schedule_send_outlined;
+    case 'self_improvement':
+      return Icons.self_improvement;
+    case 'task_alt_rounded':
+      return Icons.task_alt_rounded;
+    case 'visibility_rounded':
+      return Icons.visibility_rounded;
     case 'water_drop_outlined':
       return Icons.water_drop_outlined;
+    case 'wash_rounded':
+      return Icons.wash_rounded;
     case 'wb_sunny_outlined':
     default:
       return Icons.wb_sunny_outlined;
@@ -542,6 +455,8 @@ Color _colorForToken(String color) {
       return const Color(0xFFA5B4FC);
     case 'orange':
       return const Color(0xFFFF720D);
+    case 'rose':
+      return const Color(0xFFFB7185);
     case 'amber':
     default:
       return const Color(0xFFFFC02B);

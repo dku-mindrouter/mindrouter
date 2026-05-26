@@ -11,13 +11,17 @@ class NudgeRepository {
 
   final NudgeDataSource _dataSource;
 
-  Future<NudgeMission> fetchTodayMission({bool markOpened = false}) async {
+  Future<NudgeMission> fetchTodayMission({
+    bool markOpened = false,
+    String? selectedEmotionProfile,
+  }) async {
     try {
       return await withRetry(
         task: () => executeWithErrorMapping<NudgeMission>(
           action: () async {
             final dynamic raw = await _dataSource.fetchTodayMission(
               markOpened: markOpened,
+              selectedEmotionProfile: selectedEmotionProfile,
             );
             return NudgeMission.fromMap(_firstRow(raw));
           },

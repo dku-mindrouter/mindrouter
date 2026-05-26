@@ -236,6 +236,124 @@
 }
 ```
 
+## get_today_mission
+
+- 목적: 오늘의 감정 기반 또는 랜덤 오늘 미션 1건 조회/최초 발급
+- RPC 이름: `get_today_mission`
+- 클라이언트 호출 인자:
+  - `mark_opened` (optional, bool, 기본 `false`)
+  - `selected_emotion_profile` (optional, text)
+- Supabase RPC 파라미터 매핑:
+  - `mark_opened -> p_mark_opened`
+  - `selected_emotion_profile -> p_selected_emotion_profile`
+- 감정 프로필 고정값:
+  - `happy`
+  - `energized`
+  - `calm`
+  - `depressed`
+  - `lethargic`
+  - `anxious`
+  - `irritated`
+- 정책:
+  - 감정별 후보 미션은 3개씩 관리하지만, 하루에 발급되는 미션은 1개
+  - 오늘 이미 시작/완료한 미션이 있으면 기존 미션을 그대로 반환
+  - 감정 미선택 상태에서 발급된 미션이 아직 시작/완료 전이면, 오늘 감정 등록 후 감정 맞춤 미션으로 교체 가능
+  - 오늘 감정을 선택했다면 해당 프로필 미션을 우선 추천
+  - 감정을 선택하지 않았다면 랜덤 미션 발급
+  - 랜덤 미션 완료 후 감정을 선택해도 기존 미션/완료 상태 유지
+- 응답:
+  - `delivery_id` (uuid)
+  - `template_id` (bigint)
+  - `mission_type` (text)
+  - `title` (text)
+  - `subtitle` (text)
+  - `body` (text)
+  - `duration_minutes` (smallint)
+  - `checklist_json` (jsonb, 현재 단일 미션 정책에서는 빈 배열)
+  - `cta_label` (text)
+  - `accent_icon` (text)
+  - `accent_start_color` (text)
+  - `accent_end_color` (text)
+  - `delivery_local_date` (date)
+  - `opened_at` (timestamptz|null)
+  - `started_at` (timestamptz|null)
+  - `completed_at` (timestamptz|null)
+  - `selection_source` (text: `emotion` | `random` | `existing`)
+  - `matched_mission_profile` (text|null)
+  - `mission_goal` (text)
+  - `mission_state_label` (text)
+- 에러코드:
+  - `NUDGE_NOT_FOUND`
+  - `UNAUTHORIZED`
+  - `FORBIDDEN`
+  - `INVALID_ARGUMENT`
+  - `INTERNAL_ERROR`
+
+예시 응답:
+
+```json
+{
+  "delivery_id": "44444444-4444-4444-4444-444444444444",
+  "template_id": 12,
+  "mission_type": "mission_anxious_breathing",
+  "title": "4초 들이마시고 6초 내쉬기",
+  "subtitle": "몸의 호흡 리듬부터 천천히 낮춰 보세요.",
+  "body": "불안할 때는 생각을 멈추는 것보다 몸의 속도를 먼저 늦추는 편이 도움이 됩니다.",
+  "duration_minutes": 5,
+  "checklist_json": [
+    "어깨를 내려놓고 편한 자세 찾기",
+    "4초 들이마시고 6초 내쉬는 호흡 5번 하기",
+    "숨이 조금 느려졌는지 확인하기"
+  ],
+  "cta_label": "미션 시작하기",
+  "accent_icon": "air",
+  "accent_start_color": "sky",
+  "accent_end_color": "violet",
+  "delivery_local_date": "2026-05-25",
+  "opened_at": "2026-05-25T03:15:00Z",
+  "started_at": null,
+  "completed_at": null,
+  "selection_source": "emotion",
+  "matched_mission_profile": "anxious",
+  "mission_goal": "생각보다 몸의 속도를 먼저 낮추기",
+  "mission_state_label": "마음이 조급함"
+}
+```
+
+## start_today_mission
+
+- 목적: 오늘 미션 시작 상태 반영
+- RPC 이름: `start_today_mission`
+- 클라이언트 호출 인자:
+  - `delivery_id` (required, uuid)
+- Supabase RPC 파라미터 매핑:
+  - `delivery_id -> p_delivery_id`
+- 동작:
+  - `opened_at`이 비어 있으면 함께 채움
+  - `started_at`이 비어 있을 때만 현재 시각으로 기록
+- 에러코드:
+  - `NUDGE_NOT_FOUND`
+  - `UNAUTHORIZED`
+  - `INVALID_ARGUMENT`
+  - `INTERNAL_ERROR`
+
+## complete_today_mission
+
+- 목적: 오늘 미션 완료 상태 반영
+- RPC 이름: `complete_today_mission`
+- 클라이언트 호출 인자:
+  - `delivery_id` (required, uuid)
+- Supabase RPC 파라미터 매핑:
+  - `delivery_id -> p_delivery_id`
+- 동작:
+  - `opened_at`, `started_at`, `completed_at`을 순차적으로 채움
+  - 이미 완료된 미션은 기존 완료 시각 유지
+- 에러코드:
+  - `NUDGE_NOT_FOUND`
+  - `UNAUTHORIZED`
+  - `INVALID_ARGUMENT`
+  - `INTERNAL_ERROR`
+
 ## Emotion Domain Policy Notes (2026-04-11)
 
 - `getTimeBucketByLocalTime(now, timezone)`:

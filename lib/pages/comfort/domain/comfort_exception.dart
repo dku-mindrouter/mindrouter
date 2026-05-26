@@ -2,6 +2,7 @@ class ComfortErrorCode {
   static const String unauthorized = 'UNAUTHORIZED';
   static const String forbidden = 'FORBIDDEN';
   static const String letterNotFound = 'LETTER_NOT_FOUND';
+  static const String giftNotFound = 'GIFT_NOT_FOUND';
   static const String internalError = 'INTERNAL_ERROR';
 }
 

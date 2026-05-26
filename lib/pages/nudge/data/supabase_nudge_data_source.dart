@@ -8,10 +8,21 @@ class SupabaseNudgeDataSource implements NudgeDataSource {
   final SupabaseClient _client;
 
   @override
-  Future<dynamic> fetchTodayMission({required bool markOpened}) {
+  Future<dynamic> fetchTodayMission({
+    required bool markOpened,
+    String? selectedEmotionProfile,
+  }) {
+    final Map<String, dynamic> params = <String, dynamic>{
+      'p_mark_opened': markOpened,
+    };
+
+    if (selectedEmotionProfile != null && selectedEmotionProfile.isNotEmpty) {
+      params['p_selected_emotion_profile'] = selectedEmotionProfile;
+    }
+
     return _client.rpc(
       'get_today_mission',
-      params: <String, dynamic>{'p_mark_opened': markOpened},
+      params: params,
     );
   }
 

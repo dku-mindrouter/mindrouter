@@ -2,6 +2,7 @@ import '../../../shared/features/data/app_error.dart';
 import '../../../shared/features/data/execute_with_error_mapping.dart';
 import '../../../shared/features/data/with_retry.dart';
 import '../domain/comfort_exception.dart';
+import '../domain/comfort_gift.dart';
 import '../domain/comfort_letter.dart';
 import '../domain/comfort_notification.dart';
 import 'comfort_data_source.dart';
@@ -72,6 +73,48 @@ class ComfortRepository {
             );
             final List<Map<String, dynamic>> rows = _toRows(raw);
             return rows.map(ComfortLetter.fromMap).toList(growable: false);
+          },
+        ),
+        maxRetryCount: 2,
+        shouldRetry: _shouldRetry,
+      );
+    } catch (error) {
+      throw mapToComfortException(error);
+    }
+  }
+
+  Future<List<ComfortGift>> fetchReceivedGifts({
+    int limit = 30,
+    int offset = 0,
+  }) async {
+    try {
+      return await withRetry(
+        task: () => executeWithErrorMapping<List<ComfortGift>>(
+          action: () async {
+            final dynamic raw = await _dataSource.fetchReceivedGifts(
+              limit: limit,
+              offset: offset,
+            );
+            final List<Map<String, dynamic>> rows = _toRows(raw);
+            return rows.map(ComfortGift.fromMap).toList(growable: false);
+          },
+        ),
+        maxRetryCount: 2,
+        shouldRetry: _shouldRetry,
+      );
+    } catch (error) {
+      throw mapToComfortException(error);
+    }
+  }
+
+  Future<ComfortGift> openGift({required String giftId}) async {
+    try {
+      return await withRetry(
+        task: () => executeWithErrorMapping<ComfortGift>(
+          action: () async {
+            final dynamic raw = await _dataSource.openGift(giftId: giftId);
+            final Map<String, dynamic> row = _firstRow(raw);
+            return ComfortGift.fromMap(row);
           },
         ),
         maxRetryCount: 2,

@@ -5,6 +5,7 @@ import '../../../shared/widgets/app_panel_card.dart';
 import '../data/comfort_repository.dart';
 import '../data/supabase_comfort_data_source.dart';
 import '../domain/comfort_exception.dart';
+import '../domain/comfort_gift.dart';
 import '../domain/comfort_letter.dart';
 import '../domain/comfort_notification.dart';
 
@@ -23,11 +24,15 @@ class _ComfortPageState extends State<ComfortPage> {
   _ComfortView _view = _ComfortView.notifications;
   late Future<List<ComfortNotification>> _future = _fetchNotifications();
   late Future<List<ComfortLetter>> _lettersFuture = _fetchReceivedLetters();
+  late Future<List<ComfortGift>> _giftsFuture = _fetchReceivedGifts();
 
   @override
   Widget build(BuildContext context) {
     if (_view == _ComfortView.letters) {
       return _buildLetterInbox();
+    }
+    if (_view == _ComfortView.gifts) {
+      return _buildGiftBox();
     }
 
     return RefreshIndicator(
@@ -35,6 +40,7 @@ class _ComfortPageState extends State<ComfortPage> {
         setState(() {
           _future = _fetchNotifications();
           _lettersFuture = _fetchReceivedLetters();
+          _giftsFuture = _fetchReceivedGifts();
         });
         await _future;
       },
@@ -56,7 +62,10 @@ class _ComfortPageState extends State<ComfortPage> {
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(24, 16, 24, 120),
                   children: <Widget>[
-                    _Header(onOpenLetters: _openLetterInbox),
+                    _Header(
+                      onOpenLetters: _openLetterInbox,
+                      onOpenGifts: _openGiftBox,
+                    ),
                     const SizedBox(height: 24),
                     AppPanelCard(
                       backgroundColor: Colors.white.withValues(alpha: 0.05),
@@ -78,7 +87,10 @@ class _ComfortPageState extends State<ComfortPage> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(24, 16, 24, 120),
                 children: <Widget>[
-                  _Header(onOpenLetters: _openLetterInbox),
+                  _Header(
+                    onOpenLetters: _openLetterInbox,
+                    onOpenGifts: _openGiftBox,
+                  ),
                   const SizedBox(height: 24),
                   if (items.isEmpty)
                     AppPanelCard(
@@ -98,13 +110,101 @@ class _ComfortPageState extends State<ComfortPage> {
                         padding: const EdgeInsets.only(bottom: 14),
                         child: _NotificationCard(
                           item: item,
-                          onTap: item.notificationType == 'letter'
-                              ? () => _openLetter(item.id)
-                              : null,
+                          onTap: _notificationTapHandler(item),
                         ),
                       ),
                     ),
                 ],
+              );
+            },
+      ),
+    );
+  }
+
+  Widget _buildGiftBox() {
+    return RefreshIndicator(
+      onRefresh: () async {
+        setState(() {
+          _giftsFuture = _fetchReceivedGifts();
+        });
+        await _giftsFuture;
+      },
+      child: FutureBuilder<List<ComfortGift>>(
+        future: _giftsFuture,
+        builder:
+            (BuildContext context, AsyncSnapshot<List<ComfortGift>> snapshot) {
+              final List<Widget> children = <Widget>[
+                _SubPageHeader(title: '선물함', onBack: _closeSubPage),
+                const SizedBox(height: 12),
+                Text(
+                  '누군가 내 별에 남긴 커피 선물을 확인할 수 있어요.',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: Colors.white.withValues(alpha: 0.64),
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ];
+
+              if (snapshot.connectionState != ConnectionState.done) {
+                children.add(
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.only(top: 80),
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF818CF8),
+                      ),
+                    ),
+                  ),
+                );
+              } else if (snapshot.hasError) {
+                children.add(
+                  AppPanelCard(
+                    backgroundColor: Colors.white.withValues(alpha: 0.05),
+                    borderColor: Colors.white.withValues(alpha: 0.06),
+                    child: Text(
+                      _mapErrorToMessage(snapshot.error),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.82),
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                );
+              } else {
+                final List<ComfortGift> gifts = snapshot.data ?? const [];
+                if (gifts.isEmpty) {
+                  children.add(
+                    AppPanelCard(
+                      backgroundColor: Colors.white.withValues(alpha: 0.05),
+                      borderColor: Colors.white.withValues(alpha: 0.06),
+                      child: Text(
+                        '아직 도착한 선물이 없어요. 커피 선물이 도착하면 이곳에서 확인할 수 있어요.',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.72),
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                  );
+                } else {
+                  children.addAll(
+                    gifts.map(
+                      (ComfortGift gift) => Padding(
+                        padding: const EdgeInsets.only(bottom: 14),
+                        child: _GiftCard(
+                          gift: gift,
+                          onTap: () => _openGift(gift.id),
+                        ),
+                      ),
+                    ),
+                  );
+                }
+              }
+
+              return ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 120),
+                children: children,
               );
             },
       ),
@@ -127,7 +227,7 @@ class _ComfortPageState extends State<ComfortPage> {
               AsyncSnapshot<List<ComfortLetter>> snapshot,
             ) {
               final List<Widget> children = <Widget>[
-                _SubPageHeader(title: '받은 편지함', onBack: _closeLetterInbox),
+                _SubPageHeader(title: '받은 편지함', onBack: _closeSubPage),
                 const SizedBox(height: 12),
                 Text(
                   '하루 뒤 도착한 익명 편지를 모아볼 수 있어요.',
@@ -212,6 +312,21 @@ class _ComfortPageState extends State<ComfortPage> {
     return _repository.fetchReceivedLetters();
   }
 
+  Future<List<ComfortGift>> _fetchReceivedGifts() {
+    return _repository.fetchReceivedGifts();
+  }
+
+  VoidCallback? _notificationTapHandler(ComfortNotification item) {
+    switch (item.notificationType) {
+      case 'letter':
+        return () => _openLetter(item.id);
+      case 'gift':
+        return () => _openGift(item.id);
+      default:
+        return null;
+    }
+  }
+
   void _openLetterInbox() {
     setState(() {
       _view = _ComfortView.letters;
@@ -219,7 +334,14 @@ class _ComfortPageState extends State<ComfortPage> {
     });
   }
 
-  void _closeLetterInbox() {
+  void _openGiftBox() {
+    setState(() {
+      _view = _ComfortView.gifts;
+      _giftsFuture = _fetchReceivedGifts();
+    });
+  }
+
+  void _closeSubPage() {
     setState(() {
       _view = _ComfortView.notifications;
       _future = _fetchNotifications();
@@ -255,11 +377,40 @@ class _ComfortPageState extends State<ComfortPage> {
     }
   }
 
+  Future<void> _openGift(String giftId) async {
+    try {
+      final ComfortGift gift = await _repository.openGift(giftId: giftId);
+      if (!mounted) {
+        return;
+      }
+      await showDialog<void>(
+        context: context,
+        builder: (BuildContext context) => _GiftDialog(gift: gift),
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _future = _fetchNotifications();
+        _giftsFuture = _fetchReceivedGifts();
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_mapErrorToMessage(error))));
+    }
+  }
+
   String _mapErrorToMessage(Object? error) {
     if (error is ComfortException) {
       switch (error.code) {
         case ComfortErrorCode.letterNotFound:
           return '편지를 찾을 수 없어요.';
+        case ComfortErrorCode.giftNotFound:
+          return '선물을 찾을 수 없어요.';
         case ComfortErrorCode.unauthorized:
           return '로그인 정보를 확인할 수 없어요. 앱을 다시 실행해 주세요.';
         case ComfortErrorCode.forbidden:
@@ -270,12 +421,13 @@ class _ComfortPageState extends State<ComfortPage> {
   }
 }
 
-enum _ComfortView { notifications, letters }
+enum _ComfortView { notifications, letters, gifts }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.onOpenLetters});
+  const _Header({required this.onOpenLetters, required this.onOpenGifts});
 
   final VoidCallback onOpenLetters;
+  final VoidCallback onOpenGifts;
 
   @override
   Widget build(BuildContext context) {
@@ -297,59 +449,187 @@ class _Header extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        InkWell(
-          onTap: onOpenLetters,
-          borderRadius: BorderRadius.circular(22),
-          child: AppPanelCard(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            backgroundColor: const Color(0x14165DFF),
-            borderColor: const Color(0x33818CF8),
-            child: Row(
-              children: <Widget>[
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(0xFF818CF8).withValues(alpha: 0.16),
-                  ),
-                  child: const Icon(
-                    Icons.mail_outline_rounded,
-                    color: Color(0xFFC7D2FE),
-                    size: 20,
-                  ),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: _HeaderActionCard(
+                icon: Icons.card_giftcard_rounded,
+                iconColor: const Color(0xFFFBBF24),
+                title: '선물함',
+                subtitle: '커피 선물 확인',
+                onTap: onOpenGifts,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _HeaderActionCard(
+                icon: Icons.mail_outline_rounded,
+                iconColor: const Color(0xFFC7D2FE),
+                title: '받은 편지함',
+                subtitle: '익명 편지 다시 읽기',
+                onTap: onOpenLetters,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _HeaderActionCard extends StatelessWidget {
+  const _HeaderActionCard({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(22),
+      child: AppPanelCard(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        backgroundColor: Colors.white.withValues(alpha: 0.05),
+        borderColor: iconColor.withValues(alpha: 0.22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: iconColor.withValues(alpha: 0.14),
+              ),
+              child: Icon(icon, color: iconColor, size: 20),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              subtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.56),
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Icon(
+                Icons.arrow_forward_rounded,
+                color: Colors.white.withValues(alpha: 0.62),
+                size: 18,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GiftDialog extends StatelessWidget {
+  const _GiftDialog({required this.gift});
+
+  final ComfortGift gift;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: const Color(0xFF17182A),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      title: const Text(
+        '커피 선물이 도착했어요',
+        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+      ),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              '"${gift.starContent}" 별에 도착한 선물',
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.52)),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: const Color(0xFFC08457).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: const Color(0xFFC08457).withValues(alpha: 0.26),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Row(
                     children: <Widget>[
-                      const Text(
-                        '받은 편지함',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
-                        ),
+                      const Icon(
+                        Icons.coffee_outlined,
+                        color: Color(0xFFF8C58B),
                       ),
-                      const SizedBox(height: 3),
-                      Text(
-                        '도착한 익명 편지를 다시 읽기',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.56),
-                          fontSize: 12,
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          gift.title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
                     ],
                   ),
-                ),
-                Icon(
-                  Icons.arrow_forward_rounded,
-                  color: Colors.white.withValues(alpha: 0.62),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  Text(
+                    gift.description,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.72),
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  _GiftStatusPill(status: gift.status),
+                ],
+              ),
             ),
+          ],
+        ),
+      ),
+      actions: <Widget>[
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(),
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFFC08457),
+            foregroundColor: Colors.white,
           ),
+          child: const Text('확인'),
         ),
       ],
     );
@@ -611,6 +891,135 @@ class _LetterCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GiftCard extends StatelessWidget {
+  const _GiftCard({required this.gift, required this.onTap});
+
+  final ComfortGift gift;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isUnread = gift.openedAt == null;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(24),
+      child: AppPanelCard(
+        backgroundColor: Colors.white.withValues(alpha: 0.05),
+        borderColor: isUnread
+            ? const Color(0xFFC08457).withValues(alpha: 0.38)
+            : Colors.white.withValues(alpha: 0.06),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFFC08457).withValues(alpha: 0.16),
+              ),
+              child: const Icon(
+                Icons.coffee_outlined,
+                color: Color(0xFFF8C58B),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          isUnread ? '새 커피 선물' : gift.title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        _formatRelativeTime(gift.createdAt),
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.42),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '"${gift.starContent}" 별에 도착',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.48),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    gift.description,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.72),
+                      height: 1.45,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _GiftStatusPill(status: gift.status),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GiftStatusPill extends StatelessWidget {
+  const _GiftStatusPill({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final String label = switch (status) {
+      'issued' => '쿠폰 발급 완료',
+      'redeemed' => '사용 완료',
+      'expired' => '만료됨',
+      'cancelled' => '취소됨',
+      _ => '선물 예약됨',
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFC08457).withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: const Color(0xFFC08457).withValues(alpha: 0.28),
+        ),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Color(0xFFF8C58B),
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
         ),
       ),
     );
