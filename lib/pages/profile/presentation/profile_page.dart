@@ -1131,104 +1131,107 @@ class _AvatarProfileSheetState extends State<_AvatarProfileSheet> {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: AppPanelCard(
-        padding: const EdgeInsets.all(16),
-        backgroundColor: avatar.isEquipped
-            ? const Color(0x2238BDF8)
-            : Colors.white.withValues(alpha: 0.04),
-        borderColor: avatar.isEquipped
-            ? const Color(0x6638BDF8)
-            : Colors.white.withValues(alpha: 0.07),
-        borderRadius: 22,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Row(
-              children: <Widget>[
-                _AvatarPreviewImage(
-                  avatarCode: avatar.avatarCode,
-                  level: selectedLevel,
-                  isLocked: !avatar.isUnlocked,
-                  size: 68,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        avatar.avatarNameKo,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        avatar.isUnlocked
-                            ? '성장 Lv.${avatar.level} · 선택 Lv.$selectedLevel'
-                            : '아직 잠긴 아바타',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.52),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
+      child: InkWell(
+        onTap: avatar.isUnlocked && !avatar.isEquipped
+            ? () => _equipAvatar(avatar)
+            : null,
+        borderRadius: BorderRadius.circular(22),
+        child: AppPanelCard(
+          padding: const EdgeInsets.all(16),
+          backgroundColor: avatar.isEquipped
+              ? const Color(0x2238BDF8)
+              : Colors.white.withValues(alpha: 0.04),
+          borderColor: avatar.isEquipped
+              ? const Color(0x6638BDF8)
+              : Colors.white.withValues(alpha: 0.07),
+          borderRadius: 22,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  _AvatarPreviewImage(
+                    avatarCode: avatar.avatarCode,
+                    level: selectedLevel,
+                    isLocked: !avatar.isUnlocked,
+                    size: 68,
                   ),
-                ),
-                if (avatar.isUnlocked)
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    alignment: WrapAlignment.end,
-                    children: <Widget>[
-                      if (avatar.isEquipped)
-                        const _AvatarBadge(label: '장착 중')
-                      else
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          avatar.avatarNameKo,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          avatar.isUnlocked
+                              ? '성장 Lv.${avatar.level} · 선택 Lv.$selectedLevel'
+                              : '아직 잠긴 아바타',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.52),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (avatar.isUnlocked)
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      alignment: WrapAlignment.end,
+                      children: <Widget>[
+                        if (avatar.isEquipped)
+                          const _AvatarBadge(label: '장착 중'),
                         _AvatarActionButton(
-                          label: '장착',
-                          onPressed: () => _equipAvatar(avatar),
+                          label: '캐릭터 선택',
+                          onPressed: () => _toggleCharacterSelector(avatar),
                         ),
-                      _AvatarActionButton(
-                        label: '캐릭터 선택',
-                        onPressed: () => _toggleCharacterSelector(avatar),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              avatar.description,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.54),
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
+                      ],
+                    ),
+                ],
               ),
-            ),
-            if (avatar.isUnlocked) ...<Widget>[
-              if (_expandedCharacterSelectors.contains(avatar.avatarCode)) ...[
-                const SizedBox(height: 12),
-                _AvatarLevelSelector(
-                  avatarCode: avatar.avatarCode,
-                  unlockedLevel: avatar.level,
-                  selectedLevel: selectedLevel,
-                  onSelect: (int level) => _selectVisualLevel(avatar, level),
-                ),
-              ],
               const SizedBox(height: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(999),
-                child: LinearProgressIndicator(
-                  value: avatar.levelProgress,
-                  minHeight: 7,
-                  backgroundColor: Colors.white.withValues(alpha: 0.08),
-                  valueColor: AlwaysStoppedAnimation<Color>(accent),
+              Text(
+                avatar.description,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.54),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
+              if (avatar.isUnlocked) ...<Widget>[
+                if (_expandedCharacterSelectors.contains(
+                  avatar.avatarCode,
+                )) ...[
+                  const SizedBox(height: 12),
+                  _AvatarLevelSelector(
+                    avatarCode: avatar.avatarCode,
+                    unlockedLevel: avatar.level,
+                    selectedLevel: selectedLevel,
+                    onSelect: (int level) => _selectVisualLevel(avatar, level),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    value: avatar.levelProgress,
+                    minHeight: 7,
+                    backgroundColor: Colors.white.withValues(alpha: 0.08),
+                    valueColor: AlwaysStoppedAnimation<Color>(accent),
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
