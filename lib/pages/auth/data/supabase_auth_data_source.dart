@@ -27,6 +27,11 @@ class SupabaseAuthDataSource implements AuthDataSource {
   }
 
   @override
+  Future<void> refreshSession() async {
+    await _client.auth.refreshSession();
+  }
+
+  @override
   Future<void> signOut() async {
     await _client.auth.signOut();
   }

@@ -117,7 +117,6 @@ class _AuthGatePageState extends State<AuthGatePage> {
           rethrow;
         }
 
-        await _resetAuthSession(authRepository);
         await Future<void>.delayed(_retryDelay);
       }
     }
@@ -195,33 +194,37 @@ class _AuthGatePageState extends State<AuthGatePage> {
       return;
     }
 
+    if (client.auth.currentUser != null || client.auth.currentSession != null) {
+      try {
+        await authRepository.refreshCurrentSession();
+      } catch (_) {
+        // Existing anonymous accounts must not be replaced silently.
+        // If refresh fails, the auth gate retries the same account path.
+      }
+
+      if (_hasValidSession(client.auth.currentSession)) {
+        return;
+      }
+
+      throw const domain_auth.AuthException(
+        domain_auth.AuthErrorCode.sessionExpired,
+      );
+    }
+
     try {
       await authRepository.signInForDevelopment();
       if (_hasValidSession(client.auth.currentSession)) {
         return;
       }
     } catch (_) {
-      // Stale local auth state can keep currentUser while the session is dead.
-      // Clear it best-effort, then create a fresh anonymous session below.
+      throw const domain_auth.AuthException(
+        domain_auth.AuthErrorCode.unauthenticated,
+      );
     }
 
-    try {
-      await authRepository.signOut();
-    } catch (_) {
-      // Local cleanup is best-effort; re-login is the required recovery path.
-    }
-
-    await authRepository.signInForDevelopment();
-  }
-
-  Future<void> _resetAuthSession(AuthRepository authRepository) async {
-    try {
-      await authRepository.signOut();
-    } catch (_) {
-      // Best-effort cleanup; the following sign-in creates a fresh session.
-    }
-
-    await authRepository.signInForDevelopment();
+    throw const domain_auth.AuthException(
+      domain_auth.AuthErrorCode.sessionExpired,
+    );
   }
 
   bool _shouldRecoverAuthGateError(Object error) {

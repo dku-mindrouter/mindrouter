@@ -13,12 +13,14 @@ class FakeAuthDataSource implements AuthDataSource {
       StreamController<AuthStatus>.broadcast();
 
   int signInCount = 0;
+  int refreshCount = 0;
   int signOutCount = 0;
   int profileReadCount = 0;
   int upsertCount = 0;
   int tokenUpdateCount = 0;
 
   Object? signInError;
+  Object? refreshError;
   Object? signOutError;
   Object? profileError;
   Map<String, dynamic>? profile;
@@ -35,6 +37,14 @@ class FakeAuthDataSource implements AuthDataSource {
     signInCount += 1;
     if (signInError != null) {
       throw signInError!;
+    }
+  }
+
+  @override
+  Future<void> refreshSession() async {
+    refreshCount += 1;
+    if (refreshError != null) {
+      throw refreshError!;
     }
   }
 
@@ -69,7 +79,7 @@ class FakeAuthDataSource implements AuthDataSource {
   @override
   Future<void> updatePushToken({
     required String userId,
-    required String pushToken,
+    required String? pushToken,
   }) async {
     tokenUpdateCount += 1;
   }
@@ -126,6 +136,12 @@ void main() {
         expect(dataSource.signInCount, 3);
       },
     );
+
+    test('refreshCurrentSession forwards refresh call', () async {
+      await authRepository.refreshCurrentSession();
+
+      expect(dataSource.refreshCount, 1);
+    });
 
     test('mapToAuthException keeps mapped error code', () {
       final AuthException mapped = authRepository.mapToAuthException(

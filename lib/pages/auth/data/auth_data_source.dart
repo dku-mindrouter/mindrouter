@@ -5,6 +5,8 @@ abstract class AuthDataSource {
 
   Future<void> signInAnonymously();
 
+  Future<void> refreshSession();
+
   Future<void> signOut();
 
   Future<Map<String, dynamic>?> getProfileByUserId({required String userId});
