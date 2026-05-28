@@ -81,11 +81,16 @@ class SupabaseReactionDataSource implements ReactionDataSource {
   Future<dynamic> sendLetter({
     required String starId,
     required String content,
-  }) {
-    return _client.rpc(
-      'send_letter',
-      params: <String, dynamic>{'p_star_id': starId, 'p_content': content},
+  }) async {
+    final response = await _client.functions.invoke(
+      'send-letter',
+      body: <String, dynamic>{'starId': starId, 'content': content},
     );
+    final dynamic data = response.data;
+    if (data is Map<String, dynamic> && data.containsKey('data')) {
+      return data['data'];
+    }
+    return data;
   }
 
   @override

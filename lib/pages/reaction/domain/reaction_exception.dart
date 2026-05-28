@@ -7,6 +7,10 @@ class ReactionErrorCode {
       'DAILY_REACTION_LIMIT_EXCEEDED';
   static const String blockedRelationship = 'BLOCKED_RELATIONSHIP';
   static const String selfReactionNotAllowed = 'SELF_REACTION_NOT_ALLOWED';
+  static const String letterBlockedByModeration =
+      'LETTER_BLOCKED_BY_MODERATION';
+  static const String letterModerationUnavailable =
+      'LETTER_MODERATION_UNAVAILABLE';
   static const String invalidArgument = 'INVALID_ARGUMENT';
   static const String internalError = 'INTERNAL_ERROR';
 }
